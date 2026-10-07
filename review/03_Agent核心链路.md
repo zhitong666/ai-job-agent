@@ -47,19 +47,19 @@ flowchart TD
 
 | 节点 | 知识点 | 关键文件与位置 | 对应天数 |
 |---|---|---|---|
-| 模型调用与重试 | `_call_model`，异常分类重试 | [app/react.py:128](/Users/zhitong/Desktop/AI-Agent/app/react.py:128) | Day 18 |
-| ReAct 同步循环 | `run_react_loop` | [app/react.py:150](/Users/zhitong/Desktop/AI-Agent/app/react.py:150) | Day 15 |
-| ReAct 流式循环 | `stream_react_loop` | [app/react.py:288](/Users/zhitong/Desktop/AI-Agent/app/react.py:288) | Day 25 |
-| Tool 数据结构 | name/description/parameters/handler/approval | [app/tools.py:31](/Users/zhitong/Desktop/AI-Agent/app/tools.py:31) | Day 16 |
-| ToolRegistry | 注册、查找、转 OpenAI schema | [app/tools.py:41](/Users/zhitong/Desktop/AI-Agent/app/tools.py:41) | Day 16 |
-| finish 工具 | 自动追加最终答案 schema | [app/tools.py:14](/Users/zhitong/Desktop/AI-Agent/app/tools.py:14) | Day 15 |
-| 默认工具 | search/list/apply_job | [app/tools.py:122](/Users/zhitong/Desktop/AI-Agent/app/tools.py:122) | Day 16、Day 17、Day 19 |
-| 工具执行 | 审批、异常转 observation | [app/tool_executor.py:12](/Users/zhitong/Desktop/AI-Agent/app/tool_executor.py:12) | Day 43 |
-| 人工审批 | `queue.Queue` 跨请求传递 | [app/approval.py:4](/Users/zhitong/Desktop/AI-Agent/app/approval.py:4) | Day 19 |
-| Agent 状态 | running/finished/failed + JSON checkpoint | [app/agent_state.py:9](/Users/zhitong/Desktop/AI-Agent/app/agent_state.py:9) | Day 21 |
-| 输入护栏 | `guard_user_input` | [app/prompt_guard.py:62](/Users/zhitong/Desktop/AI-Agent/app/prompt_guard.py:62) | Day 54 |
-| 最终答案校验 | `validate_final_answer` | [app/guards.py:17](/Users/zhitong/Desktop/AI-Agent/app/guards.py:17) | Day 20 |
-| SSE 事件 | `sse_event` | [app/streaming.py:6](/Users/zhitong/Desktop/AI-Agent/app/streaming.py:6) | Day 22 |
+| 模型调用与重试 | `_call_model`，异常分类重试 | [app/react.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/react.py) | Day 18 |
+| ReAct 同步循环 | `run_react_loop` | [app/react.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/react.py) | Day 15 |
+| ReAct 流式循环 | `stream_react_loop` | [app/react.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/react.py) | Day 25 |
+| Tool 数据结构 | name/description/parameters/handler/approval | [app/tools.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/tools.py) | Day 16 |
+| ToolRegistry | 注册、查找、转 OpenAI schema | [app/tools.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/tools.py) | Day 16 |
+| finish 工具 | 自动追加最终答案 schema | [app/tools.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/tools.py) | Day 15 |
+| 默认工具 | search/list/apply_job | [app/tools.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/tools.py) | Day 16、Day 17、Day 19 |
+| 工具执行 | 审批、异常转 observation | [app/tool_executor.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/tool_executor.py) | Day 43 |
+| 人工审批 | `queue.Queue` 跨请求传递 | [app/approval.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/approval.py) | Day 19 |
+| Agent 状态 | running/finished/failed + JSON checkpoint | [app/agent_state.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/agent_state.py) | Day 21 |
+| 输入护栏 | `guard_user_input` | [app/prompt_guard.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/prompt_guard.py) | Day 54 |
+| 最终答案校验 | `validate_final_answer` | [app/guards.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/guards.py) | Day 20 |
+| SSE 事件 | `sse_event` | [app/streaming.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/streaming.py) | Day 22 |
 
 ## 4. 核心实现讲解
 
@@ -73,7 +73,7 @@ LLM 返回的是 `message.tool_calls`，不是已经执行的结果。代码做�
 执行 handler，生成 observation
 ```
 
-见 [app/react.py:202](/Users/zhitong/Desktop/AI-Agent/app/react.py:202)。
+见 [app/react.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/react.py)。
 
 关键边界：
 
@@ -91,7 +91,7 @@ assistant.tool_calls = [每个 tool_call 的 payload]
 后面跟多个 role=tool 消息，且 tool_call_id 和 assistant.tool_calls[].id 对齐
 ```
 
-实现见 [app/react.py:248](/Users/zhitong/Desktop/AI-Agent/app/react.py:248) 和 [app/react.py:259](/Users/zhitong/Desktop/AI-Agent/app/react.py:259)。
+实现见 [app/react.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/react.py) 和 [app/react.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/react.py)。
 
 面试重点：这是 OpenAI Function Calling 协议的关键，如果 `tool_call_id` 不匹配，下一次调用会失败或无法关联观察结果。
 
@@ -104,7 +104,7 @@ assistant.tool_calls = [每个 tool_call 的 payload]
 ReAct 只做 name -> registry.get_tool(name) -> handler
 ```
 
-[app/tools.py:60](/Users/zhitong/Desktop/AI-Agent/app/tools.py:60) 的 `to_openai_tools()` 把业务工具和自动追加的 `finish` 一起交给模型。
+[app/tools.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/tools.py) 的 `to_openai_tools()` 把业务工具和自动追加的 `finish` 一起交给模型。
 
 ### 4.4 Human-in-the-loop
 
@@ -114,14 +114,17 @@ ReAct 只做 name -> registry.get_tool(name) -> handler
 approve_tool_call(tool_name, arguments)
 ```
 
-在 API 层，这个回调是 [app/main.py:434](/Users/zhitong/Desktop/AI-Agent/app/main.py:434)：
+在 API 层，这个回调是 [app/main.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/main.py)：
 
 ```python
 def approve_tool_call(tool_name, arguments):
     return approval_store.wait(request_id)
 ```
 
-`ApprovalStore` 用 `queue.Queue` 在一个请求的 SSE 生成器和 `/agent/approve` 的另一个请求之间传递用户选择，超时 120 秒返回 False，避免永久卡住，见 [app/approval.py:14](/Users/zhitong/Desktop/AI-Agent/app/approval.py:14)。
+`ApprovalStore` 用 `queue.Queue` 在一个请求的 SSE 生成器和 `/agent/approve` 的另一个请求之间传递用户选择，超时 120 秒返回 False，避免永久卡住，见 [app/approval.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/approval.py)。
+
+这是单进程等待演示，未按 user/run/tool_call/参数 hash 绑定归属，也不支持多实例共享。
+超时拒绝不代表审批权限完整，补课与修复任务见 [10](10_源码事实核对与项目边界.md)。
 
 ### 4.5 防死循环
 
@@ -133,7 +136,7 @@ finish 工具明确结束。
 异常转 observation，让模型继续或最终结束。
 ```
 
-`run_react_loop` 超过步数时抛出 `ReAct 循环超过最大步数`，状态标记 failed，见 [app/react.py:273](/Users/zhitong/Desktop/AI-Agent/app/react.py:273)。
+`run_react_loop` 超过步数时抛出 `ReAct 循环超过最大步数`，状态标记 failed，见 [app/react.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/react.py)。
 
 ### 4.6 AgentState 与 checkpoint
 
@@ -146,7 +149,7 @@ steps: list[ReactStep]
 final_answer
 ```
 
-保存/加载 JSON checkpoint 见 [app/agent_state.py:26](/Users/zhitong/Desktop/AI-Agent/app/agent_state.py:26)。它记录问题、步骤轨迹和最终状态，为审计和恢复打基础。
+保存/加载 JSON checkpoint 见 [app/agent_state.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/agent_state.py)。它记录问题、步骤轨迹和最终状态，为审计和恢复打基础。
 
 ### 4.7 SSE 事件
 
@@ -156,7 +159,7 @@ Agent 流式接口使用：
 chunk、step、approval、answer、error、done、trace
 ```
 
-`stream_react_loop` 在每个工具执行后发 `step`，在需要审批时发 `approval`，最终发 `answer` 或 `error`，见 [app/react.py:365](/Users/zhitong/Desktop/AI-Agent/app/react.py:365)。
+`stream_react_loop` 在每个工具执行后发 `step`，在需要审批时发 `approval`，最终发 `answer` 或 `error`，见 [app/react.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/react.py)。
 
 ## 5. 工具与依赖
 
