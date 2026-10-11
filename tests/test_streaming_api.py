@@ -98,6 +98,8 @@ def test_chat_stream_endpoint_returns_sse():
         yield streaming.sse_event("chunk", "你好")
         yield streaming.sse_event("done", "")
 
+    app.state.async_client = MagicMock()
+    app.state.llm_semaphore = MagicMock()
     app.state.session_store = MagicMock()
     app.state.rate_limiter = MagicMock()
     app.state.rate_limiter.allow = AsyncMock(return_value=True)

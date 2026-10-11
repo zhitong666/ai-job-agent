@@ -56,15 +56,15 @@ flowchart TD
 
 | 节点 | 知识点 | 关键文件与位置 | 对应天数 |
 |---|---|---|---|
-| MCP Server 配置 | transport、host、port、日志 | [app/mcp_server.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_server.py) | Day 50、Day 51 |
-| Server 构建 | 注册 Tool / Resource / Prompt | [app/mcp_server.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_server.py) | Day 50、Day 51 |
-| 知识库工具实现 | search/list/get_document | [app/mcp_tools.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_tools.py) | Day 51 |
-| Client 连接 | stdio_client + ClientSession | [app/mcp_client.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_client.py) | Day 50 |
-| 工具发现 | list_tools | [app/mcp_client.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_client.py) | Day 52 |
-| 工具调用 | call_tool、错误处理 | [app/mcp_client.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_client.py) | Day 52 |
-| Schema 转换 | MCP input_schema -> OpenAI Function | [app/mcp_client.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_client.py) | Day 52 |
-| Agent Bridge | 动态注册、护栏、权限、脱敏 | [app/mcp_agent_bridge.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_agent_bridge.py) | Day 52、Day 53 |
-| MCP Agent | 复用 ReAct 循环 | [app/mcp_agent.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_agent.py) | Day 52 |
+| MCP Server 配置 | transport、host、port、日志 | [app/mcp_server.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_server.py) | Day 50、Day 51 |
+| Server 构建 | 注册 Tool / Resource / Prompt | [app/mcp_server.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_server.py) | Day 50、Day 51 |
+| 知识库工具实现 | search/list/get_document | [app/mcp_tools.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_tools.py) | Day 51 |
+| Client 连接 | stdio_client + ClientSession | [app/mcp_client.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_client.py) | Day 50 |
+| 工具发现 | list_tools | [app/mcp_client.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_client.py) | Day 52 |
+| 工具调用 | call_tool、错误处理 | [app/mcp_client.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_client.py) | Day 52 |
+| Schema 转换 | MCP input_schema -> OpenAI Function | [app/mcp_client.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_client.py) | Day 52 |
+| Agent Bridge | 动态注册、护栏、权限、脱敏 | [app/mcp_agent_bridge.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_agent_bridge.py) | Day 52、Day 53 |
+| MCP Agent | 复用 ReAct 循环 | [app/mcp_agent.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_agent.py) | Day 52 |
 
 ## 5. 核心实现讲解
 
@@ -86,7 +86,7 @@ Prompt:
   analyze_jd
 ```
 
-见 [app/mcp_server.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_server.py)。
+见 [app/mcp_server.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_server.py)。
 
 Tool 用于执行动作，Resource 用于读取数据，Prompt 用于生成给模型的模板。三者区分是 MCP 的关键。
 
@@ -100,7 +100,7 @@ sse
 streamable-http
 ```
 
-配置从环境变量读取，非法值直接报错，见 [app/mcp_server.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_server.py)。
+配置从环境变量读取，非法值直接报错，见 [app/mcp_server.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_server.py)。
 
 项目中 Client 默认用 stdio 启动子进程：
 
@@ -123,9 +123,9 @@ stdio_client 建立流
 -> 超时控制
 ```
 
-见 [app/mcp_client.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_client.py)。
+见 [app/mcp_client.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_client.py)。
 
-`call_mcp_tool` 会检查 `result.is_error`，并把 text content 拼成错误，见 [app/mcp_client.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_client.py)。
+`call_mcp_tool` 会检查 `result.is_error`，并把 text content 拼成错误，见 [app/mcp_client.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_client.py)。
 
 ### 5.4 Agent Bridge
 
@@ -138,7 +138,7 @@ stdio_client 建立流
 -> handler 内做参数护栏、权限检查、调用、脱敏
 ```
 
-见 [app/mcp_agent_bridge.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_agent_bridge.py)。
+见 [app/mcp_agent_bridge.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_agent_bridge.py)。
 
 `_build_remote_handler` 是安全关键：
 
@@ -147,7 +147,7 @@ stdio_client 建立流
 3. `executor(tool_name, arguments)` 调用远程 Server。
 4. `mask_value` 对结果脱敏。
 
-见 [app/mcp_agent_bridge.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_agent_bridge.py)。
+见 [app/mcp_agent_bridge.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_agent_bridge.py)。
 
 ## 6. MCP 与 Function Calling 的关系
 
@@ -156,7 +156,7 @@ Function Calling：模型返回“我要调用什么工具、参数是什么”�
 MCP：Client 如何连接 Server、发现工具、传输调用和结果。
 ```
 
-一个在模型侧，一个在工具系统侧。项目里的 `mcp_tools_to_openai_schema` 把 MCP schema 转成模型能理解的 Function schema，见 [app/mcp_client.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/mcp_client.py)。
+一个在模型侧，一个在工具系统侧。项目里的 `mcp_tools_to_openai_schema` 把 MCP schema 转成模型能理解的 Function schema，见 [app/mcp_client.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/mcp_client.py)。
 
 ## 7. 工具与依赖
 

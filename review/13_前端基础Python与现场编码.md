@@ -26,9 +26,9 @@
 
 ## 2. 前端现有实现的现场题
 
-入口：[App.tsx](/Users/zhitong/Desktop/ai-agent/ai-job-agent/frontend/src/App.tsx)、
-[api.ts](/Users/zhitong/Desktop/ai-agent/ai-job-agent/frontend/src/lib/api.ts)、
-[sseParser.ts](/Users/zhitong/Desktop/ai-agent/ai-job-agent/frontend/src/lib/sseParser.ts)。
+入口：[App.tsx](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/frontend/src/App.tsx)、
+[api.ts](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/frontend/src/lib/api.ts)、
+[sseParser.ts](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/frontend/src/lib/sseParser.ts)。
 
 1. 画 `submitChatOrAgent → apiFetch → reader.read → TextDecoder → buffer → parseSSE → applySseEvent`。
 2. 手写 parser 支持分片、多行 data、注释心跳、CRLF；保留不完整事件，避免一个网络 chunk 当一个事件。

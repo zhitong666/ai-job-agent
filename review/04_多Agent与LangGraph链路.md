@@ -66,10 +66,10 @@ flowchart TD
 
 核心文件：
 
-- 规划：[app/plan_execute.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/plan_execute.py)
-- 计划校验：[app/plan_execute.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/plan_execute.py)
-- 执行器：[app/plan_execute.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/plan_execute.py)
-- 流式入口：[app/plan_execute.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/plan_execute.py)
+- 规划：[app/plan_execute.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/plan_execute.py)
+- 计划校验：[app/plan_execute.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/plan_execute.py)
+- 执行器：[app/plan_execute.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/plan_execute.py)
+- 流式入口：[app/plan_execute.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/plan_execute.py)
 
 ### 关键设计
 
@@ -80,7 +80,7 @@ flowchart TD
 status/observation 由执行器维护
 ```
 
-这样模型不能伪造 `status=completed`，也不会污染工具 Schema。定义见 [app/models.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/models.py)。
+这样模型不能伪造 `status=completed`，也不会污染工具 Schema。定义见 [app/models.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/models.py)。
 
 计划校验会检查：
 
@@ -109,10 +109,10 @@ flowchart TD
 
 核心文件：
 
-- Supervisor 路由：[app/supervisor.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor.py)
-- Worker 注册表：[app/workers.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/workers.py)
-- Handoff 决策转换：[app/supervisor.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor.py)
-- 主循环：[app/supervisor.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor.py)
+- Supervisor 路由：[app/supervisor.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor.py)
+- Worker 注册表：[app/workers.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/workers.py)
+- Handoff 决策转换：[app/supervisor.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor.py)
+- 主循环：[app/supervisor.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor.py)
 
 ### 关键设计
 
@@ -129,9 +129,9 @@ status: completed / failed / handoff
 answer / error / handoff
 ```
 
-`MAX_HANDOFFS` 默认 3，防止两个 Worker 来回交接导致死循环，见 [app/supervisor.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor.py)。
+`MAX_HANDOFFS` 默认 3，防止两个 Worker 来回交接导致死循环，见 [app/supervisor.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor.py)。
 
-`decision_from_handoff` 会把上一轮的 context、worker 输出、handoff 的补充 context 拼起来，让下一个 Worker 有完整上下文，见 [app/supervisor.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor.py)。
+`decision_from_handoff` 会把上一轮的 context、worker 输出、handoff 的补充 context 拼起来，让下一个 Worker 有完整上下文，见 [app/supervisor.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor.py)。
 
 ## 5. LangGraph 状态图
 
@@ -144,7 +144,7 @@ flowchart LR
     F --> END
 ```
 
-核心文件：[app/supervisor_graph.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor_graph.py)。
+核心文件：[app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
 
 ### 状态结构
 
@@ -158,7 +158,7 @@ class SupervisorGraphState(TypedDict, total=False):
     result: dict
 ```
 
-`total=False` 表示字段逐步出现，符合图执行过程中状态增量更新的特点，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor_graph.py)。
+`total=False` 表示字段逐步出现，符合图执行过程中状态增量更新的特点，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
 
 ### 四个节点
 
@@ -169,7 +169,7 @@ handoff_node：生成 next_decision，追加 handoff，handoff_count 加 1。
 finalize_node：根据 worker_result 生成最终 SupervisorResult。
 ```
 
-节点定义在 [app/supervisor_graph.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor_graph.py)。
+节点定义在 [app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
 
 ### 条件分支
 
@@ -181,7 +181,7 @@ and worker_result.handoff is not None
 and handoff_count < max_handoffs
 ```
 
-满足则去 `handoff`，否则去 `finalize`，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor_graph.py)。
+满足则去 `handoff`，否则去 `finalize`，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
 
 ### Checkpoint 与 thread_id
 
@@ -190,9 +190,9 @@ def _run_config(run_id):
     return {"configurable": {"thread_id": run_id}}
 ```
 
-LangGraph 用 `thread_id` 标识一个运行实例。Checkpointer 是 `langgraph-checkpoint-sqlite`，保存到 `data/langgraph_checkpoints.sqlite`，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor_graph.py)。
+LangGraph 用 `thread_id` 标识一个运行实例。Checkpointer 是 `langgraph-checkpoint-sqlite`，保存到 `data/langgraph_checkpoints.sqlite`，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
 
-`interrupt_before=["finalize"]` 会在 finalize 前暂停，便于查询和人工恢复，见 [app/main.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/main.py)。
+`interrupt_before=["finalize"]` 会在 finalize 前暂停，便于查询和人工恢复，见 [app/main.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/main.py)。
 
 ## 6. 生产能力：幂等、租户、超时、共享记忆
 
@@ -205,7 +205,7 @@ LangGraph 用 `thread_id` 标识一个运行实例。Checkpointer 是 `langgraph
 没有 -> 创建 run_id 并保存映射
 ```
 
-见 [app/supervisor_graph.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor_graph.py)。
+见 [app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
 该分支需要显式传入 `memory_store`，HTTP start 默认未传；lookup/write 也不是原子并发 claim。
 所以这是条件式演示能力，不能说所有重复请求都已去重。
 
@@ -218,11 +218,11 @@ idempotency namespace: tenant:{tenant_id}:idempotency
 
 以上 namespace 用于共享记忆，不能推导 checkpoint 已隔离。
 当前 `_run_config` 只有 `thread_id=run_id`，读/恢复缺少 run 的对象归属校验，见
-[app/supervisor_graph.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor_graph.py) 和 [10](10_源码事实核对与项目边界.md)。
+[app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py) 和 [10](10_源码事实核对与项目边界.md)。
 
 ### 超时
 
-`_invoke_with_timeout` 把同步 `graph.invoke` 放进 `ThreadPoolExecutor(max_workers=1)`，用 `future.result(timeout)` 限时，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/supervisor_graph.py)。
+`_invoke_with_timeout` 把同步 `graph.invoke` 放进 `ThreadPoolExecutor(max_workers=1)`，用 `future.result(timeout)` 限时，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
 
 面试时要主动说明：这是等待超时，不是线程执行取消；已启动的工具仍可能继续运行和写状态。
 HTTP start 还在 async 路由直接进入同步图调用。应区分队列化/协作取消/独立执行环境强制终止，
@@ -236,7 +236,7 @@ HTTP start 还在 async 路由直接进入同步图调用。应区分队列化/�
 memory_id、namespace、key、value JSON、created_at、updated_at
 ```
 
-提供 `set / get / list_namespace / delete`，并用 `UNIQUE(namespace, key)` 防止同 key 重复，见 [app/shared_memory.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/shared_memory.py)。
+提供 `set / get / list_namespace / delete`，并用 `UNIQUE(namespace, key)` 防止同 key 重复，见 [app/shared_memory.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/shared_memory.py)。
 
 ## 7. 工具与依赖
 

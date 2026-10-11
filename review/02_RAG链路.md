@@ -56,19 +56,19 @@ flowchart LR
 
 | 节点 | 知识点 | 关键文件与位置 | 对应天数 |
 |---|---|---|---|
-| 文档加载 | JSON 知识库结构 | [app/rag.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag.py) | Day 5 |
-| 文本切分 | fixed / semantic / paragraph | [app/chunking.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/chunking.py)、[app/chunking.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/chunking.py)、[app/chunking.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/chunking.py) | Day 8、Day 36 |
-| token 估算 | tiktoken cl100k_base | [app/chunking.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/chunking.py) | Day 29、Day 36 |
-| 内容指纹 | SHA1 | [app/chunking.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/chunking.py) | Day 36 |
-| Embedding 选型 | EmbeddingProfile、场景选择 | [app/embedding_registry.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/embedding_registry.py) | Day 37 |
-| 远程 Embedding | 低内存部署 | [app/remote_embedding.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/remote_embedding.py) | Day 64 |
-| 向量库适配 | Chroma / Qdrant Protocol | [app/vector_store.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/vector_store.py) | Day 10、Day 38 |
-| BM25 | 中文 tokenize、词频、IDF | [app/bm25.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/bm25.py) | Day 9 |
-| 混合检索 | 归一化 + alpha 加权 | [app/rag.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag.py) | Day 9、Day 39 |
-| 重排 | CrossEncoder | [app/rag.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag.py) | Day 9、Day 39 |
-| Query Rewriting | 多查询、降级 | [app/query_rewriter.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/query_rewriter.py) | Day 40、Day 42 |
-| 上下文格式化 | `[chunk_id] title: text` | [app/agent.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/agent.py) | Day 6、Day 12 |
-| 检索评估 | Recall、Precision、MRR、NDCG | [app/evaluate.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/evaluate.py)、[app/rag_evaluate.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag_evaluate.py) | Day 13、Day 41 |
+| 文档加载 | JSON 知识库结构 | [app/rag.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag.py) | Day 5 |
+| 文本切分 | fixed / semantic / paragraph | [app/chunking.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/chunking.py)、[app/chunking.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/chunking.py)、[app/chunking.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/chunking.py) | Day 8、Day 36 |
+| token 估算 | tiktoken cl100k_base | [app/chunking.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/chunking.py) | Day 29、Day 36 |
+| 内容指纹 | SHA1 | [app/chunking.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/chunking.py) | Day 36 |
+| Embedding 选型 | EmbeddingProfile、场景选择 | [app/embedding_registry.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/embedding_registry.py) | Day 37 |
+| 远程 Embedding | 低内存部署 | [app/remote_embedding.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/remote_embedding.py) | Day 64 |
+| 向量库适配 | Chroma / Qdrant Protocol | [app/vector_store.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/vector_store.py) | Day 10、Day 38 |
+| BM25 | 中文 tokenize、词频、IDF | [app/bm25.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/bm25.py) | Day 9 |
+| 混合检索 | 归一化 + alpha 加权 | [app/rag.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag.py) | Day 9、Day 39 |
+| 重排 | CrossEncoder | [app/rag.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag.py) | Day 9、Day 39 |
+| Query Rewriting | 多查询、降级 | [app/query_rewriter.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/query_rewriter.py) | Day 40、Day 42 |
+| 上下文格式化 | `[chunk_id] title: text` | [app/agent.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/agent.py) | Day 6、Day 12 |
+| 检索评估 | Recall、Precision、MRR、NDCG | [app/evaluate.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/evaluate.py)、[app/rag_evaluate.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag_evaluate.py) | Day 13、Day 41 |
 
 ## 4. 节点深入讲解
 
@@ -90,7 +90,7 @@ source_type、section、language、char_count、token_count、
 content_hash、chunking_version、prev_chunk_id、next_chunk_id
 ```
 
-见 [app/chunking.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/chunking.py)。
+见 [app/chunking.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/chunking.py)。
 
 面试关键点：
 
@@ -107,18 +107,18 @@ Embedding 模型和生成模型不同：
 Embedding 模型：把文本映射到固定维度的向量，让语义相近的文本距离更近。
 ```
 
-项目通过 [app/embedding_registry.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/embedding_registry.py) 维护模型 Profile：
+项目通过 [app/embedding_registry.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/embedding_registry.py) 维护模型 Profile：
 
 ```text
 dimension、max_sequence_length、supports_chinese、
 normalize_embeddings、latency、quality_tier
 ```
 
-场景选择会按中文、序列长度、延迟、质量等条件过滤，然后选择最优模型。`load_embedding_model` 在 `embedding_provider=remote` 时返回 `RemoteEmbeddingModel`，否则本地加载 `SentenceTransformer`，见 [app/embedding_registry.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/embedding_registry.py)。
+场景选择会按中文、序列长度、延迟、质量等条件过滤，然后选择最优模型。`load_embedding_model` 在 `embedding_provider=remote` 时返回 `RemoteEmbeddingModel`，否则本地加载 `SentenceTransformer`，见 [app/embedding_registry.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/embedding_registry.py)。
 
 ### 4.3 向量库适配
 
-`VectorStore` 是 `Protocol`，不是基类。它定义 `upsert / load_embeddings / has_chunks / query`，见 [app/vector_store.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/vector_store.py)。
+`VectorStore` 是 `Protocol`，不是基类。它定义 `upsert / load_embeddings / has_chunks / query`，见 [app/vector_store.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/vector_store.py)。
 
 Chroma 使用余弦距离：
 
@@ -142,9 +142,9 @@ BM25 是词法检索：
 关键词精确匹配 -> TF 词频 -> IDF 稀有词权重 -> 文档长度归一化
 ```
 
-本项目中文 tokenize 不是直接 `split()`，而是把连续中文拆成单字和二元组，见 [app/bm25.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/bm25.py)。
+本项目中文 tokenize 不是直接 `split()`，而是把连续中文拆成单字和二元组，见 [app/bm25.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/bm25.py)。
 
-混合检索在 [app/rag.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag.py)：
+混合检索在 [app/rag.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag.py)：
 
 1. 向量库召回 `candidate_top_k` 个候选。
 2. BM25 召回 `candidate_top_k` 个候选。
@@ -163,7 +163,7 @@ BM25 是词法检索：
 HybridRerankRetriever 粗排 -> reranker(query, candidates, top_k)
 ```
 
-实现见 [app/rag.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag.py)。模型是 `BAAI/bge-reranker-base`。
+实现见 [app/rag.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag.py)。模型是 `BAAI/bge-reranker-base`。
 
 ### 4.6 Query Rewriting
 
@@ -175,7 +175,7 @@ sub_queries：最多 3 个补充查询
 reason：改写原因
 ```
 
-`multi_query_retrieve` 对主查询和子查询分别检索，再合并去重取最高分，见 [app/query_rewriter.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/query_rewriter.py)。
+`multi_query_retrieve` 对主查询和子查询分别检索，再合并去重取最高分，见 [app/query_rewriter.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/query_rewriter.py)。
 
 改写失败时 `rewrite_query_safe` 降级为原始 query，不阻塞主流程。
 
@@ -187,20 +187,20 @@ reason：改写原因
 [chunk_id] title: text (score=0.xxx)
 ```
 
-Prompt 要求模型在相关句子末尾标注 `[chunk_id]`，见 [app/prompts.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/prompts.py)。
+Prompt 要求模型在相关句子末尾标注 `[chunk_id]`，见 [app/prompts.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/prompts.py)。
 
-`build_sources` 构造 `Source` 列表返回给前端，见 [app/agent.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/agent.py)。
+`build_sources` 构造 `Source` 列表返回给前端，见 [app/agent.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/agent.py)。
 
 ## 5. 工具与依赖
 
 | 依赖 | 作用 | 使用位置 |
 |---|---|---|
-| `sentence-transformers` | 本地加载 BGE Embedding 和 CrossEncoder | [app/embedding_registry.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/embedding_registry.py)、[app/rag.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag.py) |
-| `chromadb` | 本地持久化向量库 | [app/vector_store.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/vector_store.py) |
-| `qdrant-client` | 独立向量库客户端 | [app/vector_store.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/vector_store.py) |
-| `numpy` | 向量矩阵运算、排序、归一化 | [app/rag.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag.py) |
-| `tiktoken` | token 估算 | [app/chunking.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/chunking.py) |
-| `openai` | 远程 Embedding 的 OpenAI 兼容接口 | [app/remote_embedding.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/remote_embedding.py) |
+| `sentence-transformers` | 本地加载 BGE Embedding 和 CrossEncoder | [app/embedding_registry.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/embedding_registry.py)、[app/rag.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag.py) |
+| `chromadb` | 本地持久化向量库 | [app/vector_store.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/vector_store.py) |
+| `qdrant-client` | 独立向量库客户端 | [app/vector_store.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/vector_store.py) |
+| `numpy` | 向量矩阵运算、排序、归一化 | [app/rag.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag.py) |
+| `tiktoken` | token 估算 | [app/chunking.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/chunking.py) |
+| `openai` | 远程 Embedding 的 OpenAI 兼容接口 | [app/remote_embedding.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/remote_embedding.py) |
 
 ## 6. 评估指标
 
@@ -215,10 +215,10 @@ NDCG@K：既看是否相关，也看排序位置。
 
 实现：
 
-- [app/evaluate.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/evaluate.py) `recall_at_k`
-- [app/evaluate.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/evaluate.py) `precision_at_k`
-- [app/evaluate.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/evaluate.py) `mrr`
-- [app/rag_evaluate.py](/Users/zhitong/Desktop/ai-agent/ai-job-agent/app/rag_evaluate.py) `ndcg_at_k`
+- [app/evaluate.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/evaluate.py) `recall_at_k`
+- [app/evaluate.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/evaluate.py) `precision_at_k`
+- [app/evaluate.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/evaluate.py) `mrr`
+- [app/rag_evaluate.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/rag_evaluate.py) `ndcg_at_k`
 
 ### 生成指标
 
