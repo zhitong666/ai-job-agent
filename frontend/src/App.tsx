@@ -159,7 +159,8 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [sessionId, setSessionId] = useState(`session-${createId()}`);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const sendingRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -201,6 +202,7 @@ export default function App() {
     const token = await createGuestSession();
     storeSession(token.access_token, "guest");
     setAuthKind("guest");
+    resetConversation();
     await refreshQuota();
   }
 
@@ -208,18 +210,18 @@ export default function App() {
     const token = await login(username, password);
     storeSession(token.access_token, "user");
     setAuthKind("user");
+    resetConversation();
     await refreshQuota();
   }
 
   async function handleLogout() {
     clearSession();
-    resetConversation();
     await switchToGuest();
   }
 
-  function resetConversation(nextMode: Mode = mode) {
+  function resetConversation() {
     setMessages([]);
-    setSessionId(`session-${nextMode}-${createId()}`);
+    setSessionId(null);
   }
 
   function changeMode(nextMode: Mode) {
@@ -228,24 +230,24 @@ export default function App() {
     }
 
     setMode(nextMode);
-    resetConversation(nextMode);
+    resetConversation();
   }
 
   async function submitQuestion(questionOverride?: string) {
     const question = (questionOverride ?? input).trim();
+    if (!question || sendingRef.current || authKind === "loading") return;
 
-    if (!question || sending || authKind === "loading") {
-      return;
-    }
-
+    sendingRef.current = true;
     setInput("");
-
-    if (mode === "jd") {
-      await submitJd(question);
-      return;
+    try {
+      if (mode === "jd") {
+        await submitJd(question);
+      } else {
+        await submitChatOrAgent(question);
+      }
+    } finally {
+      sendingRef.current = false;
     }
-
-    await submitChatOrAgent(question);
   }
 
   async function submitJd(question: string) {
@@ -274,10 +276,7 @@ export default function App() {
       if (response.status === 401) {
         clearSession();
         await switchToGuest();
-        setMessageContent(
-          assistantId,
-          "登录状态已过期，已切换为游客模式。",
-        );
+        setMessages([{ id: createId(), role: "assistant", content: "登录状态已过期，已切换为游客模式。" }]);
         return;
       }
 
@@ -338,12 +337,30 @@ export default function App() {
                 ? "/agent/mcp/stream"
                 : "/agent/stream";
 
-    const body =
-      definition.endpoint === "chat"
-        ? { session_id: sessionId, question, scene: mode }
+    try {
+      let chatSessionId = sessionId;
+      if (definition.endpoint === "chat" && !chatSessionId) {
+        const created = await apiFetch("/chat/sessions", {
+          method: "POST",
+          signal: controller.signal,
+        });
+        if (created.status === 401) {
+          clearSession();
+          await switchToGuest();
+          setMessages([{ id: createId(), role: "assistant", content: "登录状态已过期，已切换为游客模式。" }]);
+          return;
+        }
+        if (!created.ok) throw new Error(await readError(created));
+        const data = (await created.json()) as { session_id?: string };
+        if (!data.session_id) throw new Error("创建会话未返回 session_id");
+        chatSessionId = data.session_id;
+        setSessionId(chatSessionId);
+      }
+
+      const body = definition.endpoint === "chat"
+        ? { session_id: chatSessionId, question, scene: mode }
         : { question, scene: "job" };
 
-    try {
       const response = await apiFetch(path, {
         method: "POST",
         body: JSON.stringify(body),
@@ -353,10 +370,7 @@ export default function App() {
       if (response.status === 401) {
         clearSession();
         await switchToGuest();
-        setMessageContent(
-          assistantId,
-          "登录状态已过期，已切换为游客模式。",
-        );
+        setMessages([{ id: createId(), role: "assistant", content: "登录状态已过期，已切换为游客模式。" }]);
         return;
       }
 
@@ -540,6 +554,7 @@ export default function App() {
                 key={item.id}
                 type="button"
                 className={mode === item.id ? "active" : ""}
+                disabled={sending}
                 onClick={() => changeMode(item.id)}
               >
                 <Icon size={16} />
@@ -557,6 +572,7 @@ export default function App() {
                 key={item.id}
                 type="button"
                 className={mode === item.id ? "active" : ""}
+                disabled={sending}
                 onClick={() => changeMode(item.id)}
               >
                 <Icon size={16} />
@@ -664,6 +680,7 @@ export default function App() {
           type="button"
           className="icon-button"
           title="清空对话"
+          disabled={sending}
           onClick={() => resetConversation()}
         >
           <Trash2 size={18} />

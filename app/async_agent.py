@@ -7,7 +7,6 @@ from app.async_function_calling import call_required_function_async
 from app.async_llm import chat_completion_with_retry_async
 from app.context import ContextBudget
 from app.llm import SAVE_JOB_DESCRIPTION_TOOL
-from app.memory import session_store as in_memory_session_store
 from app.model_registry import get_model_name
 from app.models import ChatResponse, JobAnalysis, JobDescription
 from app.prompts import (
@@ -26,27 +25,27 @@ async def _retrieve(retriever, query: str, top_k: int = 3):
     )
 
 
-async def _load_history(session_store, session_id: str) -> list[dict]:
+async def _load_history(
+    session_store, session_id: str, tenant_id: str, owner_sub: str
+) -> list[dict]:
     if session_store is None:
-        memory = in_memory_session_store.get(session_id)
-        return memory.get_messages()
-
-    return await session_store.get_messages(session_id)
+        raise RuntimeError("chat session store unavailable")
+    return await session_store.get_messages(session_id, tenant_id, owner_sub)
 
 
 async def _save_turn(
     session_store,
     session_id: str,
+    tenant_id: str,
+    owner_sub: str,
     question: str,
     answer: str,
 ) -> None:
     if session_store is None:
-        memory = in_memory_session_store.get(session_id)
-        memory.add("user", question)
-        memory.add("assistant", answer)
-        return
-
-    await session_store.append_turn(session_id, question, answer)
+        raise RuntimeError("chat session store unavailable")
+    await session_store.append_turn(
+        session_id, tenant_id, owner_sub, question, answer
+    )
 
 
 async def parse_job_description_async(
@@ -118,8 +117,11 @@ async def answer_question_async(
     retriever=None,
     semaphore=None,
     session_store=None,
+    *, 
+    tenant_id: str, 
+    owner_sub: str,
 ) -> ChatResponse:
-    history = await _load_history(session_store, session_id)
+    history = await _load_history(session_store, session_id, tenant_id, owner_sub)
     sources = []
     context = ""
 
@@ -143,7 +145,9 @@ async def answer_question_async(
 
     reply = response.choices[0].message.content
 
-    await _save_turn(session_store, session_id, question, reply)
+    await _save_turn(
+    session_store, session_id, tenant_id, owner_sub, question, reply
+)
 
     return ChatResponse(reply=reply, sources=sources)
 
@@ -156,8 +160,11 @@ async def stream_answer_question_async(
     retriever=None,
     semaphore=None,
     session_store=None,
+    *, 
+    tenant_id: str, 
+    owner_sub: str,
 ) -> AsyncIterator[str]:
-    history = await _load_history(session_store, session_id)
+    history = await _load_history(session_store, session_id, tenant_id, owner_sub)
     context = ""
 
     if scene in {"job", "project"}:
@@ -189,6 +196,8 @@ async def stream_answer_question_async(
 
     reply = "".join(reply_parts)
 
-    await _save_turn(session_store, session_id, question, reply)
+    await _save_turn(
+    session_store, session_id, tenant_id, owner_sub, question, reply
+)
 
     yield sse_event("done", "")

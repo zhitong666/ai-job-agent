@@ -1,5 +1,6 @@
 import uuid
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
@@ -36,7 +37,7 @@ from app.models import (
 from app.observability import observability_store, trace_stream
 from app.plan_execute import stream_plan_execute
 from app.postgres import create_postgres_pool
-from app.postgres_session_store import PostgresSessionStore
+from app.postgres_session_store import PostgresSessionStore, SessionNotFound
 from app.queue import create_queue
 from app.quota import QuotaService
 from app.react import stream_react_loop
@@ -247,9 +248,56 @@ async def analyze_jd(
 
 
 class ChatRequest(BaseModel):
-    session_id: str
+    session_id: str = Field(min_length=1)
     question: str = Field(min_length=1)
     scene: str = "job"
+
+
+class ChatSessionResponse(BaseModel):
+    session_id: str
+
+
+def _chat_store():
+    store = getattr(app.state, "session_store", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="chat session store unavailable")
+    return store
+
+
+def _validate_chat_request(request: ChatRequest) -> None:
+    if not request.session_id.strip():
+        raise HTTPException(status_code=422, detail="session_id must not be empty")
+    if not request.question.strip():
+        raise HTTPException(status_code=422, detail="question must not be empty")
+
+
+async def _authorize_chat_session(store, session_id: str, user) -> None:
+    try:
+        await store.authorize_session(session_id, user.tenant_id, user.sub)
+    except SessionNotFound as exc:
+        raise HTTPException(status_code=404, detail="session not found") from exc
+
+
+def _rate_identity(user) -> str:
+    return f"{quote(user.tenant_id, safe='')}:{quote(user.sub, safe='')}"
+
+
+@app.post(
+    "/chat/sessions",
+    response_model=ChatSessionResponse,
+    status_code=201,
+)
+async def create_chat_session(user=Depends(get_current_user)) -> ChatSessionResponse:
+    store = _chat_store()
+    allowed = await app.state.rate_limiter.allow(
+        f"chat:session:create:{_rate_identity(user)}",
+        limit=10,
+        window_seconds=60,
+    )
+    if not allowed:
+        raise HTTPException(status_code=429, detail="too many requests")
+    session_id = await store.create_session(user.tenant_id, user.sub)
+    return ChatSessionResponse(session_id=session_id)
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -258,30 +306,28 @@ async def chat(
     user=Depends(get_current_user),
     quota_service=Depends(get_quota_service),
 ) -> ChatResponse:
-    rate_key = f"chat:rate:{request.session_id}"
-    allowed = await app.state.rate_limiter.allow(
-        rate_key,
-        limit=10,
-        window_seconds=60,
+    _validate_chat_request(request)
+    store = _chat_store()
+    await _authorize_chat_session(store, request.session_id, user)
+    rate_key = (
+        f"chat:rate:{_rate_identity(user)}:"
+        f"{quote(request.session_id, safe='')}"
     )
-
+    allowed = await app.state.rate_limiter.allow(
+        rate_key, limit=10, window_seconds=60
+    )
     if not allowed:
         raise HTTPException(status_code=429, detail="too many requests")
-
-    await enforce_quota(
-        quota_service,
-        user,
-        request.question,
-        request.scene,
-    )
-
+    await enforce_quota(quota_service, user, request.question, request.scene)
     return await answer_question_async(
         app.state.async_client,
         request.session_id,
         request.question,
         scene=request.scene,
         semaphore=app.state.llm_semaphore,
-        session_store=app.state.session_store,
+        session_store=store,
+        tenant_id=user.tenant_id,
+        owner_sub=user.sub,
     )
 
 
@@ -291,26 +337,19 @@ async def chat_stream(
     user=Depends(get_current_user),
     quota_service=Depends(get_quota_service),
 ):
-    if not request.question.strip():
-        raise HTTPException(status_code=422, detail="question must not be empty")
-
-    rate_key = f"chat:rate:{request.session_id}"
-    allowed = await app.state.rate_limiter.allow(
-        rate_key,
-        limit=10,
-        window_seconds=60,
+    _validate_chat_request(request)
+    store = _chat_store()
+    await _authorize_chat_session(store, request.session_id, user)
+    rate_key = (
+        f"chat:rate:{_rate_identity(user)}:"
+        f"{quote(request.session_id, safe='')}"
     )
-
+    allowed = await app.state.rate_limiter.allow(
+        rate_key, limit=10, window_seconds=60
+    )
     if not allowed:
         raise HTTPException(status_code=429, detail="too many requests")
-
-    await enforce_quota(
-        quota_service,
-        user,
-        request.question,
-        request.scene,
-    )
-
+    await enforce_quota(quota_service, user, request.question, request.scene)
     return StreamingResponse(
         stream_answer_question_async(
             app.state.async_client,
@@ -318,7 +357,9 @@ async def chat_stream(
             request.question,
             scene=request.scene,
             semaphore=app.state.llm_semaphore,
-            session_store=app.state.session_store,
+            session_store=store,
+            tenant_id=user.tenant_id,
+            owner_sub=user.sub,
         ),
         media_type="text/event-stream",
     )

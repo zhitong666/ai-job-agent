@@ -73,12 +73,15 @@ def test_async_chat_endpoint_returns_patched_response():
             retriever=None,
             semaphore=None,
             session_store=None,
+            tenant_id=None,
+            owner_sub=None,
         ):
             return {"reply": "async ok", "sources": []}
 
         app.state.async_client = MagicMock()
         app.state.llm_semaphore = asyncio.Semaphore()
         app.state.session_store = MagicMock()
+        app.state.session_store.authorize_session = AsyncMock(return_value=None)
         app.state.rate_limiter = MagicMock()
         app.state.rate_limiter.allow = AsyncMock(return_value=True)
         seed_quota_service()
@@ -121,6 +124,8 @@ def test_async_chat_requests_overlap():
             retriever=None,
             semaphore=None,
             session_store=None,
+            tenant_id=None,
+            owner_sub=None,
         ):
             nonlocal active, peak
 
@@ -140,6 +145,7 @@ def test_async_chat_requests_overlap():
         app.state.async_client = MagicMock()
         app.state.llm_semaphore = asyncio.Semaphore()
         app.state.session_store = MagicMock()
+        app.state.session_store.authorize_session = AsyncMock(return_value=None)
         app.state.rate_limiter = MagicMock()
         app.state.rate_limiter.allow = AsyncMock(return_value=True)
         seed_quota_service()
@@ -182,6 +188,8 @@ def test_async_chat_stream_endpoint_consumes_async_generator():
             retriever=None,
             semaphore=None,
             session_store=None,
+            tenant_id=None,
+            owner_sub=None,
         ):
             yield "event: chunk\ndata: 你好\n\n"
             yield "event: done\ndata: \n\n"
@@ -189,6 +197,7 @@ def test_async_chat_stream_endpoint_consumes_async_generator():
         app.state.async_client = MagicMock()
         app.state.llm_semaphore = asyncio.Semaphore()
         app.state.session_store = MagicMock()
+        app.state.session_store.authorize_session = AsyncMock(return_value=None)
         app.state.rate_limiter = MagicMock()
         app.state.rate_limiter.allow = AsyncMock(return_value=True)
         seed_quota_service()

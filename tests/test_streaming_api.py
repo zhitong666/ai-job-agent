@@ -94,6 +94,8 @@ def test_chat_stream_endpoint_returns_sse():
         retriever=None,
         semaphore=None,
         session_store=None,
+        tenant_id=None,
+        owner_sub=None,
     ):
         yield streaming.sse_event("chunk", "你好")
         yield streaming.sse_event("done", "")
@@ -101,6 +103,7 @@ def test_chat_stream_endpoint_returns_sse():
     app.state.async_client = MagicMock()
     app.state.llm_semaphore = MagicMock()
     app.state.session_store = MagicMock()
+    app.state.session_store.authorize_session = AsyncMock(return_value=None)
     app.state.rate_limiter = MagicMock()
     app.state.rate_limiter.allow = AsyncMock(return_value=True)
     app.state.quota_service = MagicMock()
@@ -140,3 +143,24 @@ def test_chat_stream_rejects_empty_question():
     )
 
     assert response.status_code == 422
+
+# 再补一个很小的无 store 用例：把 `app.state.session_store` 设为 `None`、传有效 JWT 和非空 `session_id/question` 调 `/chat/stream`，断言 503；调用完要用 `monkeypatch` 恢复全局 app state
+def test_chat_stream_rejects_missing_store(monkeypatch):
+    monkeypatch.setattr(app.state, "session_store", None, raising=False)
+    # FastAPI 会先解析依赖，即使路由稍后返回 503，也须注入此依赖。
+    monkeypatch.setattr(app.state, "quota_service", MagicMock(), raising=False)
+    limiter = MagicMock()
+    limiter.allow = AsyncMock(return_value=True)
+    monkeypatch.setattr(app.state, "rate_limiter", limiter, raising=False)
+
+    with patch("app.main.stream_answer_question_async") as stream:
+        response = client.post(
+            "/chat/stream",
+            json={"session_id": "s1", "question": "你好"},
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "chat session store unavailable"
+    stream.assert_not_called()
+    limiter.allow.assert_not_awaited()
