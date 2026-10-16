@@ -160,12 +160,28 @@ def test_stream_react_loop_emits_approval_and_rejects():
 
 def test_approval_store_roundtrip():
     store = ApprovalStore()
-    store.decide("approval-3", True)
-
-    assert store.wait("approval-3", timeout=0.1) is True
+    owner = {"tenant_id": "tenant-test", "owner_sub": "user-test"}
+    ticket = store.issue(
+        run_id="run-test", tool_call_id="call-test", tool_name="apply_job",
+        arguments={"company": "A", "position": "X"}, **owner,
+    )
+    store.decide(ticket.approval_id, True, **owner)
+    assert store.wait_and_consume(
+        ticket.approval_id, run_id="run-test", tool_call_id="call-test",
+        tool_name="apply_job", arguments={"company": "A", "position": "X"},
+        timeout=0.1, **owner,
+    ) is True
 
 
 def test_approval_store_times_out_when_no_decision():
     store = ApprovalStore()
-
-    assert store.wait("approval-4", timeout=0.01) is False
+    owner = {"tenant_id": "tenant-test", "owner_sub": "user-test"}
+    ticket = store.issue(
+        run_id="run-test", tool_call_id="call-test", tool_name="apply_job",
+        arguments={"company": "A", "position": "X"}, **owner,
+    )
+    assert store.wait_and_consume(
+        ticket.approval_id, run_id="run-test", tool_call_id="call-test",
+        tool_name="apply_job", arguments={"company": "A", "position": "X"},
+        timeout=0.01, **owner,
+    ) is False

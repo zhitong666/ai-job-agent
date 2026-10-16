@@ -21,9 +21,14 @@ export type Step = {
 };
 
 export type Approval = {
+  approval_id: string;
   request_id: string;
+  run_id: string;
+  tool_call_id: string;
   tool: string;
-  arguments: Record<string, string>;
+  arguments: Record<string, unknown>;
+  status: "pending";
+  expires_at: number;
 };
 
 export type MetaEvent = {
@@ -38,6 +43,9 @@ export type Message = {
   streaming?: boolean;
   steps?: Step[];
   approval?: Approval | null;
+  approvalSubmitting?: boolean;
+  approvalError?: string;
+  approvalUnavailable?: boolean;
   meta?: MetaEvent[];
 };
 

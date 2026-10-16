@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import uuid
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from openai import APIConnectionError, APITimeoutError, RateLimitError
 
 from app.agent import get_retriever
 from app.agent_state import AgentState, save_checkpoint
+from app.approval import ApprovalContext, ApprovalTicket, canonical_arguments
 from app.guards import (
     validate_final_answer,
     validate_tool_arguments,
@@ -39,16 +41,40 @@ def _tool_call_payload(tool_call, arguments, call_id):
     }
 
 
-def _execute_tool(tool, arguments, retriever, approve_tool_call):
+def _prepare_approval(tool, arguments, call_id, request_id, approval_context):
+    if approval_context is not None:
+        ticket = approval_context.issue(tool.name, arguments, call_id)
+        payload = ticket.public_payload()
+    else:
+        # 仅保留本地 CLI/fake 回调契约；HTTP 入口必须传 ApprovalContext。
+        ticket = None
+        payload = {
+            "request_id": request_id or "local-only",
+            "tool_call_id": call_id,
+            "tool": tool.name,
+            "arguments": json.loads(canonical_arguments(arguments)),
+        }
+    return ticket, sse_event("approval", json.dumps(payload, ensure_ascii=False))
+
+
+def _execute_tool(tool, arguments, retriever, approve_tool_call, *, approval_context: ApprovalContext | None = None, approval_ticket: ApprovalTicket | None = None, tool_call_id: str | None = None):
     try:
+        # 新建独立快照；核验与 handler 使用同一份参数，外部改原字典不影响它。
+        actual_arguments = json.loads(canonical_arguments(arguments))
         if tool.requires_approval:
-            if approve_tool_call is None:
-                return f"工具 {tool.name} 需要人工确认，但当前没有审批处理程序。"
-
-            if not approve_tool_call(tool.name, arguments):
-                return f"工具 {tool.name} 已被用户拒绝。"
-
-        return tool.handler(arguments, retriever=retriever)
+            if approval_context is not None:
+                if approval_ticket is None or tool_call_id is None:
+                    return f"工具 {tool.name} 缺少审批票据，未执行。"
+                if not approval_context.wait_and_consume(
+                    approval_ticket, tool.name, actual_arguments, tool_call_id,
+                ):
+                    return f"工具 {tool.name} 已被用户拒绝或审批已取消，未执行。"
+            else:
+                if approve_tool_call is None:
+                    return f"工具 {tool.name} 需要人工确认，但当前没有审批处理程序。"
+                if not approve_tool_call(tool.name, actual_arguments):
+                    return f"工具 {tool.name} 已被用户拒绝。"
+        return tool.handler(actual_arguments, retriever=retriever)
     except Exception as exc:
         return f"工具 {tool.name} 执行失败: {exc}"
 
@@ -70,6 +96,7 @@ def _ensure_apply_job_events(
     retriever,
     approve_tool_call,
     approval_request_id,
+    approval_context=None,
 ):
     tool = registry.get_tool("apply_job")
 
@@ -80,27 +107,19 @@ def _ensure_apply_job_events(
     action_input = arguments.get(tool.input_field) or question
     guard_error = validate_tool_arguments(tool.name, arguments)
 
+    call_id = f"forced_{uuid.uuid4().hex}"
+    ticket = None
     if not guard_error and tool.requires_approval:
-        yield sse_event(
-            "approval",
-            json.dumps(
-                {
-                    "request_id": approval_request_id or "unknown",
-                    "tool": tool.name,
-                    "arguments": arguments,
-                },
-                ensure_ascii=False,
-            ),
+        ticket, event = _prepare_approval(
+            tool, arguments, call_id, approval_request_id, approval_context,
         )
+        yield event
 
     if guard_error:
         observation = f"工具 {tool.name} 参数校验失败: {guard_error}"
     else:
         observation = _execute_tool(
-            tool,
-            arguments,
-            retriever,
-            approve_tool_call,
+            tool, arguments, retriever, approve_tool_call, approval_context=approval_context, approval_ticket=ticket, tool_call_id=call_id,
         )
 
     steps.append(
@@ -115,6 +134,7 @@ def _ensure_apply_job_events(
         "step",
         json.dumps(
             {
+                "id": call_id,
                 "tool": tool.name,
                 "input": action_input,
                 "observation": observation,
@@ -297,6 +317,7 @@ def stream_react_loop(
     checkpoint_path: Path | None = None,
     registry=None,
     system_prompt=REACT_SYSTEM_PROMPT,
+    approval_context: ApprovalContext | None = None,
 ) -> Iterator[str]:
     if state is None:
         state = AgentState(question=question)
@@ -354,6 +375,7 @@ def stream_react_loop(
                             retriever,
                             approve_tool_call,
                             approval_request_id,
+                            approval_context,
                         )
 
                     state.steps = list(steps)
@@ -388,6 +410,7 @@ def stream_react_loop(
                             retriever,
                             approve_tool_call,
                             approval_request_id,
+                            approval_context,
                         )
 
                     state.steps = list(steps)
@@ -412,30 +435,26 @@ def stream_react_loop(
 
                 guard_error = validate_tool_arguments(tool_name, arguments)
 
+                call_id = getattr(tool_call, "id", None) or f"call_{len(steps)}"
+                ticket = None
                 if not guard_error and tool.requires_approval:
-                    yield sse_event(
-                        "approval",
-                        json.dumps(
-                            {
-                                "request_id": approval_request_id or "unknown",
-                                "tool": tool_name,
-                                "arguments": arguments,
-                            },
-                            ensure_ascii=False,
-                        ),
+                    ticket, event = _prepare_approval(
+                        tool, arguments, call_id, approval_request_id, approval_context,
                     )
-                
+                    yield event
+
                 if guard_error:
                     observation = f"工具 {tool_name} 参数校验失败: {guard_error}"
                 else:
                     observation = _execute_tool(
-                        tool,
-                        arguments,
-                        retriever,
-                        approve_tool_call,
+                        tool, 
+                        arguments, 
+                        retriever, 
+                        approve_tool_call, 
+                        approval_context=approval_context,
+                        approval_ticket=ticket, 
+                        tool_call_id=call_id,
                     )
-
-                call_id = getattr(tool_call, "id", None) or f"call_{len(steps)}"
 
                 steps.append(
                     ReactStep(
@@ -449,6 +468,7 @@ def stream_react_loop(
                     "step",
                     json.dumps(
                         {
+                            "id": call_id,
                             "tool": tool_name,
                             "input": action_input,
                             "observation": observation,

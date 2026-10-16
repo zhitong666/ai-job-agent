@@ -5,10 +5,15 @@ from urllib.parse import quote
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from app.agent import get_retriever
-from app.approval import approval_store
+from app.approval import (
+    ApprovalConflict,
+    ApprovalContext,
+    ApprovalNotFound,
+    approval_store,
+)
 from app.async_agent import (
     analyze_job_async,
     answer_question_async,
@@ -449,8 +454,25 @@ class AgentStreamRequest(BaseModel):
 
 
 class ApprovalRequest(BaseModel):
-    request_id: str
-    approved: bool
+    model_config = ConfigDict(extra="forbid")
+    approval_id: str = Field(min_length=1)
+    approved: StrictBool
+
+
+def _new_approval_context(user):
+    return ApprovalContext(
+        approval_store, 
+        run_id=str(uuid.uuid4()),
+        tenant_id=user.tenant_id, 
+        owner_sub=user.sub,
+    )
+
+
+def _close_approval_stream(stream, context):
+    try:
+        yield from stream
+    finally:
+        context.close()
 
 
 @app.post("/agent/stream")
@@ -470,23 +492,18 @@ async def agent_stream(
         agent=True,
     )
 
-    request_id = request.request_id or str(uuid.uuid4())
-
-    def approve_tool_call(tool_name, arguments):
-        return approval_store.wait(request_id)
-
+    context = _new_approval_context(user)
     stream = stream_react_loop(
         request.question,
-        approve_tool_call=approve_tool_call,
-        approval_request_id=request_id,
+        approval_context=context,
     )
 
     return StreamingResponse(
         trace_stream(
             observability_store,
             request.question,
-            request_id,
-            stream,
+            context.run_id,
+            _close_approval_stream(stream, context),
         ),
         media_type="text/event-stream",
     )
@@ -497,8 +514,18 @@ def agent_approve(
     request: ApprovalRequest,
     user=Depends(get_current_user),
 ):
-    approval_store.decide(request.request_id, request.approved)
-    return {"status": "ok"}
+    try:
+        status = approval_store.decide(
+            request.approval_id, 
+            request.approved,
+            tenant_id=user.tenant_id, 
+            owner_sub=user.sub,
+        )
+    except ApprovalNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ApprovalConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"approval_id": request.approval_id, "status": status}
 
 
 @app.get("/agent/traces/{trace_id}")
@@ -528,12 +555,12 @@ async def agent_plan_stream(
         agent=True,
     )
 
-    request_id = request.request_id or str(uuid.uuid4())
     registry = build_default_registry()
     retriever = get_retriever()
 
     def approve_tool_call(tool_name, arguments):
-        return approval_store.wait(request_id)
+        # 本模式尚未接入绑定票据；需审批工具立即拒绝，不使用旧 run-ID 队列。
+        return False
 
     stream = stream_plan_execute(
         request.question,
@@ -562,10 +589,10 @@ async def agent_supervisor_stream(
         agent=True,
     )
 
-    request_id = request.request_id or str(uuid.uuid4())
 
     def approve_tool_call(tool_name, arguments):
-        return approval_store.wait(request_id)
+        # 本模式尚未接入绑定票据；需审批工具立即拒绝，不使用旧 run-ID 队列。
+        return False
 
     stream = stream_supervisor(
         request.question,
@@ -592,10 +619,10 @@ async def agent_graph_stream(
         agent=True,
     )
 
-    request_id = request.request_id or str(uuid.uuid4())
 
     def approve_tool_call(tool_name, arguments):
-        return approval_store.wait(request_id)
+        # 本模式尚未接入绑定票据；需审批工具立即拒绝，不使用旧 run-ID 队列。
+        return False
 
     stream = stream_graph_supervisor(
         request.question,
@@ -719,23 +746,18 @@ async def agent_mcp_stream(
         agent=True,
     )
 
-    request_id = request.request_id or str(uuid.uuid4())
-
-    def approve_tool_call(tool_name, arguments):
-        return approval_store.wait(request_id)
-
+    context = _new_approval_context(user)
     stream = stream_mcp_react_loop(
         request.question,
-        approve_tool_call=approve_tool_call,
-        approval_request_id=request_id,
+        approval_context=context,
     )
 
     return StreamingResponse(
         trace_stream(
             observability_store,
             request.question,
-            request_id,
-            stream,
+            context.run_id,
+            _close_approval_stream(stream, context),
         ),
         media_type="text/event-stream",
     )

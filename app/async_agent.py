@@ -146,8 +146,8 @@ async def answer_question_async(
     reply = response.choices[0].message.content
 
     await _save_turn(
-    session_store, session_id, tenant_id, owner_sub, question, reply
-)
+        session_store, session_id, tenant_id, owner_sub, question, reply
+    )
 
     return ChatResponse(reply=reply, sources=sources)
 

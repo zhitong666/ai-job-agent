@@ -443,7 +443,12 @@ export default function App() {
       setMessages((current) =>
         current.map((message) =>
           message.id === messageId
-            ? { ...message, steps: [...(message.steps ?? []), step] }
+            ? {
+                ...message,
+                steps: [...(message.steps ?? []), step],
+                approval: message.approval?.tool_call_id === step.id
+                  ? null : message.approval,
+              }
             : message,
         ),
       );
@@ -455,7 +460,10 @@ export default function App() {
 
       setMessages((current) =>
         current.map((message) =>
-          message.id === messageId ? { ...message, approval } : message,
+          message.id === messageId
+            ? { ...message, approval, approvalError: undefined,
+                approvalSubmitting: false, approvalUnavailable: false }
+            : message,
         ),
       );
       return;
@@ -490,7 +498,10 @@ export default function App() {
   function setMessageStreaming(messageId: string, streaming: boolean) {
     setMessages((current) =>
       current.map((message) =>
-        message.id === messageId ? { ...message, streaming } : message,
+        message.id === messageId
+          ? { ...message, streaming,
+              ...(streaming ? {} : { approval: null, approvalSubmitting: false }) }
+          : message,
       ),
     );
   }
@@ -500,19 +511,40 @@ export default function App() {
     approval: Approval,
     approved: boolean,
   ) {
-    await apiFetch("/agent/approve", {
-      method: "POST",
-      body: JSON.stringify({
-        request_id: approval.request_id,
-        approved,
-      }),
-    });
-
-    setMessages((current) =>
-      current.map((message) =>
-        message.id === messageId ? { ...message, approval: null } : message,
-      ),
-    );
+    function update(patch: Partial<Message>) {
+      setMessages((current) => current.map((message) =>
+        message.id === messageId &&
+        message.approval?.approval_id === approval.approval_id
+          ? { ...message, ...patch } : message,
+      ));
+    }
+    update({ approvalSubmitting: true, approvalError: undefined });
+    try {
+      const response = await apiFetch("/agent/approve", {
+        method: "POST",
+        body: JSON.stringify({ approval_id: approval.approval_id, approved }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        update({
+          approvalError: typeof body?.detail === "string"
+            ? body.detail : `审批失败（${response.status}）`,
+          approvalUnavailable: response.status === 404 || response.status === 409,
+        });
+        return;
+      }
+      // 200 代表决定被接收；工具执行结果另由 step 事件提供。
+      update({ approval: null, approvalSubmitting: false });
+    } catch (error) {
+      update({
+        approvalError: error instanceof Error
+          ? `审批结果未确认：${error.message}；请查看后续步骤，勿连续点击。`
+          : "审批结果未确认，请查看后续步骤。",
+      });
+    } finally {
+      // 仅更新本票据，不会清掉已经到达的下一张审批卡片。
+      update({ approvalSubmitting: false });
+    }
   }
 
   async function handleFormSubmit(event: FormEvent) {
@@ -641,11 +673,17 @@ export default function App() {
 
               {message.approval ? (
                 <div className="approval">
-                  <span>是否批准 {message.approval.tool}？</span>
+                  <div className="approval-details">
+                    <strong>是否批准 {message.approval.tool}？</strong>
+                    <pre>{JSON.stringify(message.approval.arguments, null, 2)}</pre>
+                    <small>有效期至 {new Date(message.approval.expires_at * 1000).toLocaleTimeString()}</small>
+                    {message.approvalError ? <p role="alert">{message.approvalError}</p> : null}
+                  </div>
                   <div className="approval-actions">
                     <button
                       type="button"
                       title="批准"
+                      disabled={message.approvalSubmitting || message.approvalUnavailable}
                       onClick={() =>
                         handleApproval(message.id, message.approval!, true)
                       }
@@ -655,6 +693,7 @@ export default function App() {
                     <button
                       type="button"
                       title="拒绝"
+                      disabled={message.approvalSubmitting || message.approvalUnavailable}
                       onClick={() =>
                         handleApproval(message.id, message.approval!, false)
                       }

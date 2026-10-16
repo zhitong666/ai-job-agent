@@ -574,3 +574,14 @@
     gap: 2px;
   }
 }
+
+
+.approval-details {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.approval-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

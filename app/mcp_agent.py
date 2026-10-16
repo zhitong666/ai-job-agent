@@ -1,6 +1,7 @@
 from collections.abc import Callable, Iterator
 
 from app.agent import get_retriever
+from app.approval import ApprovalContext
 from app.mcp_agent_bridge import (
     build_mcp_agent_system_prompt,
     discover_mcp_tool_registry,
@@ -45,6 +46,7 @@ def stream_mcp_react_loop(
     timeout: int = 10,
     approve_tool_call: Callable[[str, dict], bool] | None = None,
     approval_request_id: str | None = None,
+    approval_context: ApprovalContext | None = None,
 ) -> Iterator[str]:
     registry, system_prompt = _build_registry_and_prompt()
     retriever = retriever or get_retriever()
@@ -57,6 +59,7 @@ def stream_mcp_react_loop(
         timeout=timeout,
         approve_tool_call=approve_tool_call,
         approval_request_id=approval_request_id,
+        approval_context=approval_context,
         registry=registry,
         system_prompt=system_prompt,
     )
