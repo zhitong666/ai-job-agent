@@ -39,15 +39,15 @@ def test_observability_store_redacts_trace_data():
     trace_id = store.start_trace(
         "我的邮箱 test@example.com",
         trace_id="trace-sensitive",
-    )
+     tenant_id="tenant-test", owner_sub="user-test")
     store.record(
         trace_id,
         "step",
         tool="search_knowledge",
         input="手机号 13800138000",
-    )
+     tenant_id="tenant-test", owner_sub="user-test")
 
-    trace = store.get_trace(trace_id)
+    trace = store.get_trace(trace_id, tenant_id="tenant-test", owner_sub="user-test")
 
     assert trace is not None
     assert "test@example.com" not in trace.question

@@ -27,8 +27,8 @@ def headers(subject: str, tenant: str) -> dict:
 
 def probe_trace_read() -> None:
     store = ObservabilityStore()
-    # “属于 A”是实验数据的约定；当前 Store 尚无 tenant/owner 字段。
-    trace_id = store.start_trace("D5 synthetic user-a question", "d5-user-a-trace")
+    # 修复后真实登记 A 的 owner；仍是合成 Trace，无外部服务调用。
+    trace_id = store.start_trace("D5 synthetic user-a question", "d5-user-a-trace", tenant_id="tenant-d5", owner_sub="user-a")
     with patch("app.main.observability_store", store):
         api = TestClient(main.app)
         try:

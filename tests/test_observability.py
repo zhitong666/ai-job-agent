@@ -18,10 +18,10 @@ def make_step_event(tool="search_knowledge"):
 def test_start_trace_and_record_event():
     store = ObservabilityStore()
 
-    trace_id = store.start_trace("FastAPI 需要掌握什么", trace_id="trace-1")
-    store.record(trace_id, "step", tool="search_knowledge")
+    trace_id = store.start_trace("FastAPI 需要掌握什么", trace_id="trace-1", tenant_id="tenant-test", owner_sub="user-test")
+    store.record(trace_id, "step", tool="search_knowledge", tenant_id="tenant-test", owner_sub="user-test")
 
-    trace = store.get_trace(trace_id)
+    trace = store.get_trace(trace_id, tenant_id="tenant-test", owner_sub="user-test")
 
     assert trace is not None
     assert trace.trace_id == "trace-1"
@@ -32,22 +32,22 @@ def test_start_trace_and_record_event():
 
 def test_event_counts():
     store = ObservabilityStore()
-    trace_id = store.start_trace("问题", trace_id="trace-2")
+    trace_id = store.start_trace("问题", trace_id="trace-2", tenant_id="tenant-test", owner_sub="user-test")
 
-    store.record(trace_id, "step", tool="search_knowledge")
-    store.record(trace_id, "step", tool="apply_job")
-    store.record(trace_id, "done")
+    store.record(trace_id, "step", tool="search_knowledge", tenant_id="tenant-test", owner_sub="user-test")
+    store.record(trace_id, "step", tool="apply_job", tenant_id="tenant-test", owner_sub="user-test")
+    store.record(trace_id, "done", tenant_id="tenant-test", owner_sub="user-test")
 
-    assert store.event_counts(trace_id) == {"step": 2, "done": 1}
+    assert store.event_counts(trace_id, tenant_id="tenant-test", owner_sub="user-test") == {"step": 2, "done": 1}
 
 
 def test_export_jsonl(tmp_path):
     store = ObservabilityStore()
-    trace_id = store.start_trace("问题", trace_id="trace-3")
-    store.record(trace_id, "step", tool="search_knowledge")
+    trace_id = store.start_trace("问题", trace_id="trace-3", tenant_id="tenant-test", owner_sub="user-test")
+    store.record(trace_id, "step", tool="search_knowledge", tenant_id="tenant-test", owner_sub="user-test")
 
     path = tmp_path / "traces.jsonl"
-    store.export_jsonl(path)
+    store.export_jsonl(path, tenant_id="tenant-test", owner_sub="user-test")
 
     lines = path.read_text(encoding="utf-8").strip().splitlines()
     payload = json.loads(lines[0])
@@ -82,12 +82,12 @@ def test_trace_stream_records_events_and_still_yields():
     ]
 
     stream = (event for event in events)
-    output = list(trace_stream(store, "问题", "trace-4", stream))
+    output = list(trace_stream(store, "问题", "trace-4", stream, tenant_id="tenant-test", owner_sub="user-test"))
 
     trace_event = f"event: trace\ndata: trace-4\n\n"
     assert output == [trace_event, *events]
 
-    trace = store.get_trace("trace-4")
+    trace = store.get_trace("trace-4", tenant_id="tenant-test", owner_sub="user-test")
     assert trace is not None
     assert [event.event_type for event in trace.events] == [
         "step",

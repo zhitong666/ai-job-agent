@@ -499,11 +499,16 @@ async def agent_stream(
     )
 
     return StreamingResponse(
-        trace_stream(
-            observability_store,
-            request.question,
-            context.run_id,
-            _close_approval_stream(stream, context),
+        _close_approval_stream(
+            trace_stream(
+                observability_store,
+                request.question,
+                context.run_id,
+                stream,
+                tenant_id=context.tenant_id,
+                owner_sub=context.owner_sub,
+            ),
+            context,
         ),
         media_type="text/event-stream",
     )
@@ -529,13 +534,15 @@ def agent_approve(
 
 
 @app.get("/agent/traces/{trace_id}")
-def get_agent_trace(trace_id: str):
-    trace = observability_store.get_trace(trace_id)
+def get_agent_trace(trace_id: str, user=Depends(get_current_user)):
+    trace = observability_store.get_trace(
+        trace_id, tenant_id=user.tenant_id, owner_sub=user.sub,
+    )
 
     if trace is None:
         raise HTTPException(status_code=404, detail="trace not found")
 
-    return trace.model_dump()
+    return trace.model_dump(exclude={"tenant_id", "owner_sub"})
 
 
 @app.post("/agent/plan/stream")
@@ -753,11 +760,16 @@ async def agent_mcp_stream(
     )
 
     return StreamingResponse(
-        trace_stream(
-            observability_store,
-            request.question,
-            context.run_id,
-            _close_approval_stream(stream, context),
+        _close_approval_stream(
+            trace_stream(
+                observability_store,
+                request.question,
+                context.run_id,
+                stream,
+                tenant_id=context.tenant_id,
+                owner_sub=context.owner_sub,
+            ),
+            context,
         ),
         media_type="text/event-stream",
     )

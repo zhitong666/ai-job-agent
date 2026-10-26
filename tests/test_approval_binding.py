@@ -318,7 +318,7 @@ def test_http_stream_real_loop_waits_for_owner_and_cleans_up(monkeypatch):
     quota.consume_tokens = AsyncMock(return_value=QuotaDecision(allowed=True))
     monkeypatch.setattr(main.app.state, "quota_service", quota, raising=False)
     monkeypatch.setattr(main, "approval_store", store)
-    monkeypatch.setattr(main, "trace_stream", lambda _s, _q, _id, stream: stream)
+    monkeypatch.setattr(main, "trace_stream", lambda _s, _q, _id, stream, **_owner: stream)
     monkeypatch.setattr(react, "get_retriever", lambda: object())
     monkeypatch.setattr(react, "build_default_registry", lambda: registry)
     model = MagicMock(side_effect=[

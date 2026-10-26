@@ -51,7 +51,7 @@ def stream_mcp_react_loop(
     registry, system_prompt = _build_registry_and_prompt()
     retriever = retriever or get_retriever()
 
-    return stream_react_loop(
+    yield from stream_react_loop(
         question,
         retriever=retriever,
         max_steps=max_steps,

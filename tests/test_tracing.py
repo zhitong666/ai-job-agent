@@ -74,7 +74,7 @@ def test_trace_stream_creates_span_and_events(tracer_with_exporter):
                 "FastAPI 需要掌握什么",
                 "trace-1",
                 iter(events),
-            )
+             tenant_id="tenant-test", owner_sub="user-test")
         )
     finally:
         observability.tracer = original_tracer

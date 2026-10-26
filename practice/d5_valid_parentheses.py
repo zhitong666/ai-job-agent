@@ -6,7 +6,26 @@
 
 
 def is_valid_parentheses(s: str) -> bool:
-    raise NotImplementedError("请根据 D5 题目独立实现栈")
+    stack = []
+    pairs = {
+        ")": "(",
+        "]": "[",
+        "}": "{",
+    }
+    opening = "([{"
+    closing = ")]}"
+
+    for char in s:
+        if char in opening:
+            stack.append(char)
+        elif char in closing:
+            if not stack or stack[-1] != pairs[char]:
+                return False
+            stack.pop()
+        else:
+            return False
+
+    return not stack
 
 
 def _self_check() -> None:
