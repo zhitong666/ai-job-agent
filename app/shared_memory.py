@@ -7,6 +7,8 @@ from pathlib import Path
 
 from app.models import MemoryRecord
 
+DEFAULT_MEMORY_DB_PATH = Path("data/shared_memory/memory.sqlite")
+
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
@@ -15,6 +17,8 @@ def _now() -> str:
 class SharedMemoryStore:
     def __init__(self, db_path: str | Path):
         self._lock = threading.RLock()
+        if str(db_path) != ":memory:":
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(
             str(db_path),
             check_same_thread=False,

@@ -1,9 +1,11 @@
 import argparse
 import json
+from contextlib import closing
 
-from app.agent import get_retriever
-from app.shared_memory import SharedMemoryStore
+from app.graph_run_store import GraphRunNotFound
+from app.shared_memory import DEFAULT_MEMORY_DB_PATH, SharedMemoryStore
 from app.supervisor_graph import (
+    authorize_graph_run,
     get_graph_run,
     resume_graph_run,
     start_graph_run,
@@ -11,7 +13,7 @@ from app.supervisor_graph import (
 
 
 def build_memory_store():
-    return SharedMemoryStore("data/shared_memory.sqlite")
+    return SharedMemoryStore(DEFAULT_MEMORY_DB_PATH)
 
 
 def print_run(run) -> None:
@@ -39,7 +41,6 @@ def main() -> None:
 
     start_parser = subparsers.add_parser("start")
     start_parser.add_argument("question")
-    start_parser.add_argument("--run-id", default=None)
     start_parser.add_argument(
         "--interrupt-before",
         action="append",
@@ -87,87 +88,65 @@ def main() -> None:
     memory_delete_parser.add_argument("key")
     memory_delete_parser.add_argument("--tenant-id", default="default")
 
+    # 这是受信本地运维 CLI，身份由操作员声明；不是公网 JWT 认证替代品。
+    for command_parser in (start_parser, resume_parser, state_parser, memory_list_parser, memory_get_parser, memory_delete_parser):
+        command_parser.add_argument("--owner-sub", required=True)
     args = parser.parse_args()
 
-    if args.command == "memory":
-        memory = build_memory_store()
-        namespace = f"tenant:{args.tenant_id}:run:{args.run_id}"
-
-        if args.memory_command == "list":
-            records = memory.list_namespace(namespace)
-
-            for record in records:
-                value = json.dumps(
-                    record.value,
-                    ensure_ascii=False,
-                )
-                print(f"{record.key}: {value}")
-
-            return
-
-        if args.memory_command == "get":
-            record = memory.get(namespace, args.key)
-
-            if record is None:
-                print("(not found)")
-                raise SystemExit(1)
-
-            print(
-                json.dumps(
-                    record.value,
-                    ensure_ascii=False,
-                    indent=2,
-                )
+    try:
+        if args.command == "memory":
+            record = authorize_graph_run(
+                args.run_id, tenant_id=args.tenant_id, owner_sub=args.owner_sub,
             )
+            with closing(build_memory_store()) as memory:
+                namespace = record.memory_namespace
+                if args.memory_command == "list":
+                    for item in memory.list_namespace(namespace):
+                        print(f"{item.key}: {json.dumps(item.value, ensure_ascii=False)}")
+                elif args.memory_command == "get":
+                    item = memory.get(namespace, args.key)
+                    if item is None:
+                        raise GraphRunNotFound("graph run not found")
+                    print(json.dumps(item.value, ensure_ascii=False, indent=2))
+                else:
+                    if not memory.delete(namespace, args.key):
+                        raise GraphRunNotFound("graph run not found")
+                    print("deleted=True")
             return
 
-        if args.memory_command == "delete":
-            deleted = memory.delete(namespace, args.key)
-            print(f"deleted={deleted}")
+        # state 不初始化 memory；授权在 get/resume 内部先于图构建。
+        if args.command == "state":
+            print_run(get_graph_run(
+                args.run_id, tenant_id=args.tenant_id, owner_sub=args.owner_sub,
+            ))
             return
 
-        parser.print_help()
-        raise SystemExit(1)
-
-    retriever = get_retriever()
-    memory = build_memory_store()
-
-    if args.command == "start":
-        run = start_graph_run(
-            args.question,
-            retriever=retriever,
-            run_id=args.run_id,
-            interrupt_before=args.interrupt_before,
-            memory_store=memory,
-            request_id=args.request_id,
-            tenant_id=args.tenant_id,
-            timeout_seconds=args.timeout_seconds,
-        )
-        print_run(run)
-        return
-
-    if args.command == "resume":
-        run = resume_graph_run(
-            args.run_id,
-            retriever=retriever,
-            memory_store=memory,
-            tenant_id=args.tenant_id,
-            timeout_seconds=args.timeout_seconds,
-        )
-        print_run(run)
-        return
-
-    if args.command == "state":
-        run = get_graph_run(
-            args.run_id,
-            retriever=retriever,
-            tenant_id=args.tenant_id,
-        )
-        print_run(run)
-        return
-
-    parser.print_help()
-    raise SystemExit(1)
+        if args.command == "resume":
+            authorize_graph_run(
+                args.run_id, tenant_id=args.tenant_id, owner_sub=args.owner_sub,
+            )
+        with closing(build_memory_store()) as memory:
+            if args.command == "start":
+                run = start_graph_run(
+                    args.question,
+                    interrupt_before=args.interrupt_before,
+                    memory_store=memory,
+                    request_id=args.request_id,
+                    tenant_id=args.tenant_id,
+                    owner_sub=args.owner_sub,
+                    timeout_seconds=args.timeout_seconds,
+                )
+            else:
+                run = resume_graph_run(
+                    args.run_id,
+                    memory_store=memory,
+                    tenant_id=args.tenant_id,
+                    owner_sub=args.owner_sub,
+                    timeout_seconds=args.timeout_seconds,
+                )
+            print_run(run)
+    except GraphRunNotFound as exc:
+        parser.exit(1, f"{exc}\n")
 
 
 if __name__ == "__main__":

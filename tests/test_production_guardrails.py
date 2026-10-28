@@ -1,3 +1,4 @@
+from app.graph_run_store import GraphRunStore
 from unittest.mock import patch
 
 from app.models import (
@@ -80,7 +81,8 @@ def test_invoke_with_timeout_returns_result():
     assert result == {}
 
 
-def test_start_graph_run_times_out():
+def test_start_graph_run_times_out(tmp_path):
+    store = GraphRunStore(tmp_path / "runs.sqlite")
     graph = FakeGraph(values=make_completed_values())
     memory = SharedMemoryStore(":memory:")
 
@@ -94,7 +96,8 @@ def test_start_graph_run_times_out():
         run = start_graph_run(
             "我想转 AI Agent，需要补什么？",
             retriever=FakeRetriever(),
-            run_id="timeout-run",
+            owner_sub="user-a",
+            run_store=store,
             timeout_seconds=1,
             memory_store=memory,
         )
@@ -103,7 +106,8 @@ def test_start_graph_run_times_out():
     assert "timeout" in run.error
 
 
-def test_start_graph_run_is_idempotent():
+def test_start_graph_run_is_idempotent(tmp_path):
+    store = GraphRunStore(tmp_path / "runs.sqlite")
     graph = FakeGraph(values=make_completed_values())
     memory = SharedMemoryStore(":memory:")
 
@@ -114,7 +118,8 @@ def test_start_graph_run_is_idempotent():
         first = start_graph_run(
             "我想转 AI Agent，需要补什么？",
             retriever=FakeRetriever(),
-            run_id="idempotent-run",
+            owner_sub="user-a",
+            run_store=store,
             request_id="request-1",
             memory_store=memory,
         )
@@ -122,17 +127,20 @@ def test_start_graph_run_is_idempotent():
     assert first.status == "completed"
 
     with patch(
-        "app.supervisor_graph.get_graph_run",
-        return_value=first,
+        "app.supervisor_graph.build_supervisor_graph",
+        return_value=graph,
     ):
         second = start_graph_run(
             "我想转 AI Agent，需要补什么？",
             retriever=FakeRetriever(),
+            owner_sub="user-a",
+            run_store=store,
             request_id="request-1",
             memory_store=memory,
         )
 
-    assert second.run_id == "idempotent-run"
+    assert second.run_id == first.run_id
+    assert graph.invoke_calls == 1
 
 
 def test_run_namespace_isolation():

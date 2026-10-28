@@ -1,3 +1,4 @@
+from app.graph_run_store import GraphRunStore
 from unittest.mock import patch
 
 from app.models import (
@@ -66,7 +67,8 @@ def make_completed_values():
     return {"result": result.model_dump()}
 
 
-def test_start_graph_run_returns_interrupted_snapshot():
+def test_start_graph_run_returns_interrupted_snapshot(tmp_path):
+    store = GraphRunStore(tmp_path / "runs.sqlite")
     graph = FakeGraph(
         values={},
         next_nodes=("finalize",),
@@ -80,6 +82,8 @@ def test_start_graph_run_returns_interrupted_snapshot():
         run = start_graph_run(
             "我想转 AI Agent，需要补什么？",
             retriever=FakeRetriever(),
+            owner_sub="user-a",
+            run_store=store,
             interrupt_before=["finalize"],
         )
 
@@ -87,7 +91,9 @@ def test_start_graph_run_returns_interrupted_snapshot():
     assert run.next_nodes == ["finalize"]
 
 
-def test_resume_graph_run_returns_completed_snapshot():
+def test_resume_graph_run_returns_completed_snapshot(tmp_path):
+    store = GraphRunStore(tmp_path / "runs.sqlite")
+    record = store.create(tenant_id="default", owner_sub="user-a")
     values = make_completed_values()
     graph = FakeGraph(values=values)
 
@@ -96,8 +102,10 @@ def test_resume_graph_run_returns_completed_snapshot():
         return_value=graph,
     ):
         run = resume_graph_run(
-            "run-123",
+            record.run_id,
             retriever=FakeRetriever(),
+            owner_sub="user-a",
+            run_store=store,
         )
 
     assert run.status == "completed"
@@ -105,7 +113,9 @@ def test_resume_graph_run_returns_completed_snapshot():
     assert run.result.answer == "最终答案"
 
 
-def test_get_graph_run_returns_current_snapshot():
+def test_get_graph_run_returns_current_snapshot(tmp_path):
+    store = GraphRunStore(tmp_path / "runs.sqlite")
+    record = store.create(tenant_id="default", owner_sub="user-a")
     values = make_completed_values()
     graph = FakeGraph(values=values)
 
@@ -114,10 +124,12 @@ def test_get_graph_run_returns_current_snapshot():
         return_value=graph,
     ):
         run = get_graph_run(
-            "run-123",
+            record.run_id,
             retriever=FakeRetriever(),
+            owner_sub="user-a",
+            run_store=store,
         )
 
-    assert run.run_id == "run-123"
+    assert run.run_id == record.run_id
     assert run.status == "completed"
     assert run.result.answer == "最终答案"

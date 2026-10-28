@@ -1,5 +1,6 @@
+import sqlite3
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, closing
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -25,6 +26,7 @@ from app.auth_dependencies import get_current_user, require_roles
 from app.auth_router import router as auth_router
 from app.context import count_tokens
 from app.demo_user import ensure_demo_user
+from app.graph_run_store import GraphRunConflict, GraphRunNotFound, GraphRunStorageError
 from app.http_observability import (
     ObservabilityMiddleware,
 )
@@ -49,9 +51,10 @@ from app.react import stream_react_loop
 from app.redis_client import create_redis_client
 from app.redis_rate_limiter import RedisRateLimiter
 from app.redis_session_cache import RedisSessionCache
-from app.shared_memory import SharedMemoryStore
+from app.shared_memory import DEFAULT_MEMORY_DB_PATH, SharedMemoryStore
 from app.supervisor import stream_supervisor
 from app.supervisor_graph import (
+    authorize_graph_run,
     get_graph_run,
     resume_graph_run,
     start_graph_run,
@@ -60,7 +63,7 @@ from app.supervisor_graph import (
 from app.tools import build_default_registry
 from app.user_repository import UserRepository
 
-MEMORY_DB_PATH = "data/shared_memory.sqlite"
+MEMORY_DB_PATH = DEFAULT_MEMORY_DB_PATH
 
 
 def get_memory_store():
@@ -640,11 +643,27 @@ async def agent_graph_stream(
 
 
 class GraphRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     question: str = Field(min_length=1)
-    run_id: str | None = None
     request_id: str | None = None
-    tenant_id: str = "default"
-    timeout_seconds: float | None = None
+    timeout_seconds: float | None = Field(default=None, gt=0)
+
+
+class GraphResumeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_id: str = Field(min_length=1)
+    timeout_seconds: float | None = Field(default=None, gt=0)
+
+
+def _graph_http(operation, *args, **kwargs):
+    try:
+        return operation(*args, **kwargs)
+    except GraphRunNotFound as exc:
+        raise HTTPException(status_code=404, detail="graph run not found") from exc
+    except GraphRunConflict as exc:
+        raise HTTPException(status_code=409, detail="graph run conflict") from exc
+    except (GraphRunStorageError, sqlite3.Error, OSError) as exc:
+        raise HTTPException(status_code=503, detail="graph storage unavailable") from exc
 
 
 @app.post("/agent/graph/start", response_model=GraphRunStatus)
@@ -653,28 +672,22 @@ async def agent_graph_start(
     user=Depends(get_current_user),
     quota_service=Depends(get_quota_service),
 ):
+    if not request.question.strip():
+        raise HTTPException(status_code=422, detail="question must not be empty")
     await enforce_quota(
-        quota_service,
-        user,
-        request.question,
-        "job",
-        agent=True,
+        quota_service, user, request.question, "job", agent=True,
     )
-
-    return start_graph_run(
+    # 不从 body 认领 owner，也不接收客户端 run_id。
+    # HTTP 幂等主路径留给 D7；这里仍不注入 memory_store。
+    return _graph_http(
+        start_graph_run,
         request.question,
-        run_id=request.run_id,
         request_id=request.request_id,
         tenant_id=user.tenant_id,
+        owner_sub=user.sub,
         timeout_seconds=request.timeout_seconds,
         interrupt_before=["finalize"],
     )
-
-
-class GraphResumeRequest(BaseModel):
-    run_id: str
-    tenant_id: str = "default"
-    timeout_seconds: float | None = None
 
 
 @app.post("/agent/graph/resume", response_model=GraphRunStatus)
@@ -682,9 +695,11 @@ def agent_graph_resume(
     request: GraphResumeRequest,
     user=Depends(get_current_user),
 ):
-    return resume_graph_run(
+    return _graph_http(
+        resume_graph_run,
         request.run_id,
         tenant_id=user.tenant_id,
+        owner_sub=user.sub,
         timeout_seconds=request.timeout_seconds,
     )
 
@@ -694,46 +709,39 @@ def agent_graph_state(
     run_id: str,
     user=Depends(get_current_user),
 ):
-    return get_graph_run(run_id, tenant_id=user.tenant_id)
+    return _graph_http(
+        get_graph_run, run_id, tenant_id=user.tenant_id, owner_sub=user.sub,
+    )
+
+
+def _graph_memory_action(run_id, user, action, key=None):
+    # 必须先授权，成功后才创建 memory Store、访问对应 namespace。
+    record = authorize_graph_run(run_id, tenant_id=user.tenant_id, owner_sub=user.sub)
+    with closing(get_memory_store()) as memory:
+        if action == "list":
+            return memory.list_namespace(record.memory_namespace)
+        if action == "get":
+            value = memory.get(record.memory_namespace, key)
+            if value is not None:
+                return value
+        elif action == "delete" and memory.delete(record.memory_namespace, key):
+            return {"status": "ok"}
+    raise GraphRunNotFound("graph run not found")
 
 
 @app.get("/agent/memory/{run_id}", response_model=list[MemoryRecord])
-def agent_memory_list(
-    run_id: str,
-    user=Depends(get_current_user),
-):
-    namespace = f"tenant:{user.tenant_id}:run:{run_id}"
-    return get_memory_store().list_namespace(namespace)
+def agent_memory_list(run_id: str, user=Depends(get_current_user)):
+    return _graph_http(_graph_memory_action, run_id, user, "list")
 
 
 @app.get("/agent/memory/{run_id}/{key}", response_model=MemoryRecord)
-def agent_memory_get(
-    run_id: str,
-    key: str,
-    user=Depends(get_current_user),
-):
-    namespace = f"tenant:{user.tenant_id}:run:{run_id}"
-    record = get_memory_store().get(namespace, key)
-
-    if record is None:
-        raise HTTPException(status_code=404, detail="memory record not found")
-
-    return record
+def agent_memory_get(run_id: str, key: str, user=Depends(get_current_user)):
+    return _graph_http(_graph_memory_action, run_id, user, "get", key)
 
 
 @app.delete("/agent/memory/{run_id}/{key}")
-def agent_memory_delete(
-    run_id: str,
-    key: str,
-    user=Depends(get_current_user),
-):
-    namespace = f"tenant:{user.tenant_id}:run:{run_id}"
-    deleted = get_memory_store().delete(namespace, key)
-
-    if not deleted:
-        raise HTTPException(status_code=404, detail="memory record not found")
-
-    return {"status": "ok"}
+def agent_memory_delete(run_id: str, key: str, user=Depends(get_current_user)):
+    return _graph_http(_graph_memory_action, run_id, user, "delete", key)
 
 
 @app.post("/agent/mcp/stream")

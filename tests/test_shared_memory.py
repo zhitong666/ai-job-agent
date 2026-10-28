@@ -1,3 +1,4 @@
+from app.graph_run_store import GraphRunStore
 from app.models import SupervisorDecision, SupervisorResult, WorkerResult
 from app.shared_memory import SharedMemoryStore
 from unittest.mock import patch
@@ -106,7 +107,8 @@ def test_memory_store_delete():
     assert store.get("run:demo-1", "status") is None
 
 
-def test_start_graph_run_writes_run_memory():
+def test_start_graph_run_writes_run_memory(tmp_path):
+    store = GraphRunStore(tmp_path / "runs.sqlite")
     values = make_completed_values()
     graph = FakeGraph(values=values)
     memory = SharedMemoryStore(":memory:")
@@ -117,16 +119,17 @@ def test_start_graph_run_writes_run_memory():
     ):
         from app.supervisor_graph import start_graph_run
 
-        start_graph_run(
+        run = start_graph_run(
             "我想转 AI Agent，需要补什么？",
             retriever=FakeRetriever(),
-            run_id="demo-run-memory",
+            owner_sub="user-a",
+            run_store=store,
             memory_store=memory,
         )
 
-    state = memory.get("tenant:default:run:demo-run-memory", "state")
-    status = memory.get("tenant:default:run:demo-run-memory", "status")
-    result = memory.get("tenant:default:run:demo-run-memory", "result")
+    state = memory.get(f"tenant:default:run:{run.run_id}", "state")
+    status = memory.get(f"tenant:default:run:{run.run_id}", "status")
+    result = memory.get(f"tenant:default:run:{run.run_id}", "result")
 
     assert state is not None
     assert status.value == "completed"

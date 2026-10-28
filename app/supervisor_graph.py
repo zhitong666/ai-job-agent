@@ -1,6 +1,6 @@
 import concurrent.futures
+import json
 import sqlite3
-import uuid
 from collections.abc import Iterator
 from functools import partial
 from pathlib import Path
@@ -10,6 +10,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 
 from app.agent import get_retriever
+from app.graph_run_store import GraphRunStore, get_graph_run_store
 from app.models import (
     GraphRunStatus,
     HandoffDecision,
@@ -26,7 +27,7 @@ from app.supervisor import (
 )
 from app.workers import WorkerRegistry, build_default_worker_registry
 
-CHECKPOINT_DB_PATH = Path("data/langgraph_checkpoints.sqlite")
+CHECKPOINT_DB_PATH = Path("data/langgraph_checkpoints/checkpoints.sqlite")
 CHECKPOINT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
@@ -305,8 +306,13 @@ def stream_graph_supervisor(
     yield sse_event("done", "")
 
 
-def _run_config(run_id: str) -> dict:
-    return {"configurable": {"thread_id": run_id}}
+def _run_config(checkpoint_thread_id: str) -> dict:
+    return {"configurable": {"thread_id": checkpoint_thread_id}}
+
+
+def authorize_graph_run(run_id: str, *, tenant_id: str, owner_sub: str, run_store=None):
+    store = run_store if run_store is not None else get_graph_run_store()
+    return store.authorize(run_id, tenant_id=tenant_id, owner_sub=owner_sub)
 
 
 def _snapshot_from_graph(
@@ -359,16 +365,22 @@ def start_graph_run(
     retriever=None,
     approve_tool_call=None,
     max_handoffs: int | None = None,
-    run_id: str | None = None,
     checkpointer=None,
     interrupt_before: list[str] | None = None, # 如果设置：interrupt_before=["finalize"] 图会在 finalize 节点前暂停。
     memory_store: SharedMemoryStore | None = None,
     request_id: str | None = None,
     tenant_id: str = "default",
     timeout_seconds: float | None = None,
+    *,
+    owner_sub: str,
+    run_store: GraphRunStore | None = None,
 ) -> GraphRunStatus:
+    run_store = run_store if run_store is not None else get_graph_run_store()
+    run_store.validate_owner(tenant_id, owner_sub)
+    if not question.strip():
+        raise ValueError("question must not be empty")
     if request_id and memory_store:
-        idempotency_key = _idempotency_namespace(tenant_id)
+        idempotency_key = _idempotency_namespace(tenant_id, owner_sub)
         existing = memory_store.get(idempotency_key, request_id)
 
         if existing and existing.value.get("run_id"):
@@ -379,11 +391,15 @@ def start_graph_run(
                 approve_tool_call=approve_tool_call,
                 checkpointer=checkpointer,
                 tenant_id=tenant_id,
+                owner_sub=owner_sub,
+                run_store=run_store,
             )
             run.request_id = request_id
             return run
 
-    run_id = run_id or uuid.uuid4().hex
+    # 短事务先提交归属；失败时尚未构建图、检索器或执行 Worker。
+    record = run_store.create(tenant_id=tenant_id, owner_sub=owner_sub)
+    run_id = record.run_id
     checkpointer = checkpointer or DEFAULT_CHECKPOINTER
 
     graph = build_supervisor_graph(
@@ -395,7 +411,7 @@ def start_graph_run(
         interrupt_before=interrupt_before,
     )
 
-    config = _run_config(run_id)
+    config = _run_config(record.checkpoint_thread_id)
     state: SupervisorGraphState = {
         "question": question,
         "handoffs": [],
@@ -445,7 +461,7 @@ def start_graph_run(
 
     if request_id and memory_store:
         memory_store.set(
-            _idempotency_namespace(tenant_id),
+            _idempotency_namespace(tenant_id, owner_sub),
             request_id,
             {"run_id": run_id},
         )
@@ -463,7 +479,14 @@ def resume_graph_run(
     memory_store: SharedMemoryStore | None = None,
     tenant_id: str = "default",
     timeout_seconds: float | None = None,
+    *,
+    owner_sub: str,
+    run_store: GraphRunStore | None = None,
 ) -> GraphRunStatus:
+    record = authorize_graph_run(
+        run_id, tenant_id=tenant_id, owner_sub=owner_sub, run_store=run_store,
+    )
+    tenant_id = record.tenant_id
     checkpointer = checkpointer or DEFAULT_CHECKPOINTER
 
     graph = build_supervisor_graph(
@@ -475,7 +498,7 @@ def resume_graph_run(
         interrupt_before=None,
     )
 
-    config = _run_config(run_id)
+    config = _run_config(record.checkpoint_thread_id)
 
     try:
         _invoke_with_timeout(
@@ -513,7 +536,13 @@ def get_graph_run(
     approve_tool_call=None,
     checkpointer=None,
     tenant_id: str = "default",
+    *,
+    owner_sub: str,
+    run_store: GraphRunStore | None = None,
 ) -> GraphRunStatus:
+    record = authorize_graph_run(
+        run_id, tenant_id=tenant_id, owner_sub=owner_sub, run_store=run_store,
+    )
     checkpointer = checkpointer or DEFAULT_CHECKPOINTER
 
     graph = build_supervisor_graph(
@@ -526,8 +555,8 @@ def get_graph_run(
     return _snapshot_from_graph(
         run_id, 
         graph, 
-        _run_config(run_id),
-        tenant_id=tenant_id,
+        _run_config(record.checkpoint_thread_id),
+        tenant_id=record.tenant_id,
     )
 
 
@@ -563,8 +592,9 @@ def _run_namespace(tenant_id: str, run_id: str) -> str:
     return f"tenant:{tenant_id}:run:{run_id}"
 
 
-def _idempotency_namespace(tenant_id: str) -> str:
-    return f"tenant:{tenant_id}:idempotency"
+def _idempotency_namespace(tenant_id: str, owner_sub: str) -> str:
+    # JSON 编码避免分隔符拼接歧义；仍只是串行复用，尚非原子并发 claim。
+    return "idempotency:" + json.dumps([tenant_id, owner_sub], separators=(",", ":"))
 
 
 def _save_run_memory(

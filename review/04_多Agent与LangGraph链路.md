@@ -1,5 +1,7 @@
 # 04 多 Agent 与 LangGraph：Plan、Supervisor、Handoff、Checkpoint
 
+2026-10-28 D6 配套操作页：[21_Graph 状态恢复与运行归属](21_D6Graph状态恢复与运行归属.md#d6-implementation-recheck)。用户已实施并复批，实际目录 Graph 65 项/另 D5 74 项通过，Compose A/B/SQL/memory 按用户回填登记。下面按修后代码校准内部 key 与 owner；HTTP 并发幂等、暂停标签/真正取消仍有边界，不把对象权限修复说成全部生产治理完成。
+
 ## 1. 为什么需要多 Agent
 
 单个 ReAct 足够处理“查知识库回答问题”。但当系统有多种异构任务时，把路由、规划和执行混在一个 prompt 里会越来越脆弱：
@@ -166,7 +168,7 @@ class SupervisorGraphState(TypedDict, total=False):
 supervisor_node：读 question，调用 decide_worker，写 current_decision。
 worker_node：从 current_decision 找 Worker，执行并写 worker_result。
 handoff_node：生成 next_decision，追加 handoff，handoff_count 加 1。
-finalize_node：根据 worker_result 生成最终 SupervisorResult。
+finalize_node：根据 worker_result 构造 SupervisorResult，返回 result 字段的更新字典。
 ```
 
 节点定义在 [app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
@@ -186,11 +188,11 @@ and handoff_count < max_handoffs
 ### Checkpoint 与 thread_id
 
 ```python
-def _run_config(run_id):
-    return {"configurable": {"thread_id": run_id}}
+def _run_config(checkpoint_thread_id):
+    return {"configurable": {"thread_id": checkpoint_thread_id}}
 ```
 
-LangGraph 用 `thread_id` 标识一个运行实例。Checkpointer 是 `langgraph-checkpoint-sqlite`，保存到 `data/langgraph_checkpoints.sqlite`，见 [app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py)。
+LangGraph 用 thread_id 定位状态历史，不是 Python 线程编号。D6 修复后，业务 run_id 先经 [graph_run_store.py](../app/graph_run_store.py) 的可信 owner 查询，取得记录里的独立 checkpoint_thread_id，才用于 get_state/invoke。Checkpointer 保存到 `data/langgraph_checkpoints/checkpoints.sqlite`，归属表在同目录 `graph_runs.sqlite`，对齐已有 Compose 卷。
 
 `interrupt_before=["finalize"]` 会在 finalize 前暂停，便于查询和人工恢复，见 [app/main.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/main.py)。
 
@@ -198,10 +200,10 @@ LangGraph 用 `thread_id` 标识一个运行实例。Checkpointer 是 `langgraph
 
 ### 幂等
 
-`start_graph_run` 先根据 `request_id + tenant_id` 查 idempotency namespace：
+显式传 memory_store 时，`start_graph_run` 按 request_id 与 `(tenant_id, owner_sub)` 范围查询串行复用映射：
 
 ```text
-已有 run_id -> 直接返回原 run
+已有 run_id -> 校验归属后返回原 run
 没有 -> 创建 run_id 并保存映射
 ```
 
@@ -213,12 +215,10 @@ LangGraph 用 `thread_id` 标识一个运行实例。Checkpointer 是 `langgraph
 
 ```text
 run namespace: tenant:{tenant_id}:run:{run_id}
-idempotency namespace: tenant:{tenant_id}:idempotency
+idempotency namespace: idempotency: + JSON([tenant_id, owner_sub])
 ```
 
-以上 namespace 用于共享记忆，不能推导 checkpoint 已隔离。
-当前 `_run_config` 只有 `thread_id=run_id`，读/恢复缺少 run 的对象归属校验，见
-[app/supervisor_graph.py](/Users/zhitong/Desktop/AI-Agent/ai-job-agent/app/supervisor_graph.py) 和 [10](10_源码事实核对与项目边界.md)。
+namespace 本身不能替代授权。D6 修后由 graph_runs 保存可信 tenant/owner；读/恢复先 authorize_graph_run，再使用内部 checkpoint key；memory 路由也在打开 Store 前复用这份校验。start 拒收客户端 run_id，未知/旧无 owner/越权为 404。具体边界与证据见 [D6 实施复批](21_D6Graph状态恢复与运行归属.md#d6-implementation-recheck)。
 
 ### 超时
 
